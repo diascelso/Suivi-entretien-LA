@@ -1,0 +1,2088 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Entretien Annuel — LA</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+
+<style>
+:root{
+  --bg:#0d0f14;--surface:#161820;--surface2:#1e2028;--border:#2a2d38;
+  --accent:#00d4ff;--accent2:#7c3aed;--green:#10b981;--yellow:#f59e0b;
+  --red:#ef4444;--text:#e2e8f0;--muted:#64748b;
+  --mono:'DM Mono',monospace;--sans:'Space Grotesk',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:8888;gap:1.25rem;}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:var(--mono);font-size:.85rem;color:var(--muted);}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1.5rem;display:none;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;gap:1rem;}
+.logo{font-family:var(--mono);font-size:.9rem;color:var(--accent);letter-spacing:.1em;display:flex;align-items:center;gap:.75rem;}
+.logo-badge{background:var(--accent);color:#000;font-weight:700;padding:2px 8px;border-radius:3px;font-size:.72rem;}
+.logo-year{font-size:.72rem;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:3px;}
+.nav-tabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.nav-tab{padding:.45rem 1.3rem;background:transparent;border:none;color:var(--muted);font-family:var(--sans);font-size:.82rem;font-weight:500;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);}
+.nav-tab:last-child{border-right:none;}
+.nav-tab.active{background:var(--accent);color:#000;}
+.nav-tab:hover:not(.active){background:var(--surface2);color:var(--text);}
+.header-right{display:flex;align-items:center;gap:.75rem;}
+.conn-pill{font-size:.7rem;font-family:var(--mono);padding:.22rem .7rem;border-radius:10px;border:1px solid;display:flex;align-items:center;gap:.4rem;}
+.conn-pill.on{color:var(--green);border-color:var(--green);}
+.conn-pill.off{color:var(--red);border-color:var(--red);}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.view{display:none;}
+.container{max-width:1400px;margin:0 auto;padding:2rem;}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi-card.c-blue::before{background:var(--accent);}
+.kpi-card.c-green::before{background:var(--green);}
+.kpi-card.c-yellow::before{background:var(--yellow);}
+.kpi-card.c-purple::before{background:var(--accent2);}
+.kpi-label{font-size:.72rem;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.65rem;}
+.kpi-value{font-size:2.1rem;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:.35rem;}
+.kpi-card.c-blue .kpi-value{color:var(--accent);}
+.kpi-card.c-green .kpi-value{color:var(--green);}
+.kpi-card.c-yellow .kpi-value{color:var(--yellow);}
+.kpi-card.c-purple .kpi-value{color:var(--accent2);}
+.kpi-detail{font-size:.78rem;color:var(--muted);}
+.section-title{font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.ring-block{display:flex;flex-direction:column;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
+.ring-container{position:relative;width:170px;height:170px;}
+.ring-svg{transform:rotate(-90deg);}
+.ring-track{fill:none;stroke:var(--border);stroke-width:12;}
+.ring-fill{fill:none;stroke:var(--accent);stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .8s ease;}
+.ring-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.ring-pct{font-size:1.9rem;font-weight:700;font-family:var(--mono);color:var(--accent);display:block;}
+.ring-text{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;}
+.legend{display:flex;gap:1.2rem;margin-top:1rem;justify-content:center;}
+.leg{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--muted);font-family:var(--mono);}
+.leg-dot{width:8px;height:8px;border-radius:50%;}
+.chart-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;overflow-x:auto;}
+.cat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;margin-bottom:2rem;}
+.cat-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.9rem;cursor:pointer;transition:all .15s;}
+.cat-row:hover{border-color:var(--accent);background:var(--surface2);}
+.cat-name{flex:1;font-size:.85rem;font-weight:500;}
+.cat-bar-wrap{width:110px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.cat-bar{height:100%;border-radius:3px;transition:width .5s ease;}
+.pct-lbl{font-family:var(--mono);font-size:.72rem;width:34px;text-align:right;font-weight:500;}
+.cat-stats{font-family:var(--mono);font-size:.75rem;color:var(--muted);white-space:nowrap;}
+.activity-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:2rem;max-height:190px;overflow-y:auto;}
+.activity-wrap::-webkit-scrollbar{width:3px;}
+.activity-wrap::-webkit-scrollbar-thumb{background:var(--border);}
+.act-row{display:flex;align-items:center;gap:.75rem;padding:.42rem 0;border-bottom:1px solid var(--border);font-size:.78rem;}
+.act-row:last-child{border-bottom:none;}
+.act-sheet{font-family:var(--mono);color:var(--accent);font-weight:500;min-width:110px;flex-shrink:0;font-size:.72rem;}
+.act-msg{flex:1;color:var(--text);}
+.act-time{font-family:var(--mono);font-size:.67rem;color:var(--muted);white-space:nowrap;}
+.dash-top{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;}
+.dash-title{font-size:1.7rem;font-weight:700;}
+.dash-sub{color:var(--muted);font-size:.82rem;font-family:var(--mono);margin-top:.2rem;}
+.export-btns{display:flex;gap:.6rem;flex-wrap:wrap;}
+.tech-layout{display:grid;grid-template-columns:265px 1fr;gap:1.25rem;min-height:calc(100vh - 64px - 4rem);}
+.sidebar{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:sticky;top:80px;max-height:calc(100vh - 100px);display:flex;flex-direction:column;}
+.sidebar-header{padding:.9rem 1.1rem;border-bottom:1px solid var(--border);font-size:.7rem;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em;}
+.search-wrap{position:relative;padding:.65rem 1rem;border-bottom:1px solid var(--border);}
+.search-icon{position:absolute;left:1.65rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.75rem;pointer-events:none;}
+.search-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:.38rem .7rem .38rem 2rem;color:var(--text);font-family:var(--mono);font-size:.78rem;outline:none;}
+.search-input:focus{border-color:var(--accent);}
+.sidebar-list{overflow-y:auto;flex:1;}
+.sidebar-list::-webkit-scrollbar{width:3px;}
+.sidebar-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.sidebar-item{padding:.68rem 1.1rem;cursor:pointer;display:flex;align-items:center;gap:.65rem;font-size:.82rem;border-left:2px solid transparent;transition:all .12s;}
+.sidebar-item:hover{background:var(--surface2);}
+.sidebar-item.active{background:var(--surface2);border-left-color:var(--accent);color:var(--accent);}
+.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.spct{margin-left:auto;font-family:var(--mono);font-size:.68rem;color:var(--muted);}
+.item-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
+.panel-header{padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.panel-title{font-size:1.05rem;font-weight:600;}
+.panel-stats{display:flex;gap:.4rem;flex-wrap:wrap;}
+.stat-pill{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:.22rem .7rem;font-size:.72rem;font-family:var(--mono);}
+.stat-pill.done{color:var(--green);}
+.stat-pill.todo{color:var(--yellow);}
+.prog-wrap{height:4px;background:var(--border);}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .4s ease;}
+.item-list{overflow-y:auto;flex:1;max-height:540px;}
+.item-list::-webkit-scrollbar{width:3px;}
+.item-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.item-row{display:flex;align-items:center;padding:.78rem 1.4rem;border-bottom:1px solid var(--border);gap:1rem;transition:background .1s;}
+.item-row:last-child{border-bottom:none;}
+.item-row:hover{background:var(--surface2);}
+.item-name{flex:1;font-size:.82rem;font-family:var(--mono);}
+.toggle-group{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0;}
+.tgl{padding:.32rem .85rem;border:none;background:transparent;font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .12s;color:var(--muted);border-right:1px solid var(--border);}
+.tgl:last-child{border-right:none;}
+.tgl.oui.active{background:var(--green);color:#fff;}
+.tgl[data-p="2"].active{background:var(--accent);}
+.tgl[data-p="3"].active{background:var(--accent2);}
+.tgl.non.active{background:var(--red);color:#fff;}
+.tgl:hover:not(.active){background:var(--surface2);color:var(--text);}
+.bulk-bar{padding:.7rem 1.4rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);gap:1rem;flex-wrap:wrap;}
+.bulk-lbl{font-size:.75rem;color:var(--muted);font-family:var(--mono);}
+.bulk-btns{display:flex;gap:.5rem;}
+.btn{padding:.38rem .9rem;border-radius:6px;border:1px solid var(--border);font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .12s;background:transparent;color:var(--text);}
+.btn:hover{background:var(--surface2);}
+.btn.success{background:var(--green);color:#fff;border-color:var(--green);}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red);}
+.modal-overlay{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:9000;padding:1.5rem;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2rem;max-width:360px;width:100%;}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:.5rem;}
+.modal-sub{color:var(--muted);font-size:.82rem;margin-bottom:1.5rem;line-height:1.6;}
+.modal-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-family:var(--mono);font-size:.875rem;outline:none;margin-bottom:1rem;}
+.modal-input:focus{border-color:var(--accent2);}
+.modal-err{color:var(--red);font-size:.78rem;margin-bottom:.75rem;display:none;}
+.modal-btns{display:flex;gap:.75rem;}
+.modal-btn{flex:1;padding:.65rem;border-radius:8px;border:1px solid var(--border);font-family:var(--sans);font-weight:600;font-size:.85rem;cursor:pointer;background:var(--surface2);color:var(--text);}
+.modal-btn.primary{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+.modal-btn:hover{opacity:.85;}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.65rem 1.1rem;font-size:.82rem;display:flex;align-items:center;gap:.65rem;transform:translateY(80px);opacity:0;transition:all .25s ease;z-index:9999;max-width:300px;box-shadow:0 8px 32px #0009;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .cat-grid{grid-template-columns:1fr;}
+  .tech-layout{grid-template-columns:1fr;}
+  .sidebar{position:static;max-height:220px;}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Chargement des entretiens...</div>
+</div>
+
+<header id="app-header">
+  <div class="logo">
+    <span class="logo-badge">LA</span>
+    Suivi Entretien Annuel
+    <span class="logo-year" id="logo-year">2026</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchView('technician')">&#128295; Saisie entretiens</button>
+    <button class="nav-tab" onclick="checkMgmt()">&#128202; Management</button>
+    <button class="nav-tab" onclick="switchView('admin')">&#9881; Admin</button>
+  </div>
+  <div class="header-right">
+    <span class="conn-pill on" id="conn-pill"><span class="conn-dot"></span><span id="conn-txt">En ligne</span></span>
+  </div>
+</header>
+
+<div id="view-technician" class="view">
+  <div class="container">
+    <div class="tech-layout">
+      <div class="sidebar">
+        <div class="sidebar-header">Types d'entretien</div>
+        <div class="search-wrap">
+          <span class="search-icon">&#128269;</span>
+          <input class="search-input" type="text" placeholder="Rechercher un poste..." oninput="filterSidebar(this.value)">
+        </div>
+        <div class="sidebar-list" id="sidebar-list"></div>
+      </div>
+      <div class="item-panel">
+        <div class="panel-header">
+          <div class="panel-title" id="panel-title">Selectionnez un poste</div>
+          <div class="panel-stats" id="panel-stats"></div>
+        </div>
+        <div class="prog-wrap"><div class="prog-bar" id="panel-prog" style="width:0%"></div></div>
+        <div class="item-list" id="item-list">
+          <div style="padding:3rem;text-align:center;color:var(--muted);font-family:var(--mono);font-size:.85rem;line-height:2.2;">
+            Selectionnez un poste dans la liste.<br>
+            Les modifications sont enregistrees instantanement pour tous.
+          </div>
+        </div>
+        <div class="bulk-bar" id="bulk-bar" style="display:none;">
+          <div class="bulk-lbl" id="bulk-lbl"></div>
+          <div class="bulk-btns">
+            <button class="btn success" onclick="markAll(true)">Tout valider</button>
+            <button class="btn danger" onclick="markAll(false)">Tout effacer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="view-management" class="view">
+  <div class="container">
+    <div class="dash-top">
+      <div>
+        <div class="dash-title">Tableau de bord Management</div>
+        <div class="dash-sub" id="last-update-lbl">Synchronise en temps reel via Firebase</div>
+      </div>
+      <div class="export-btns">
+        <button class="btn" onclick="exportCSV()">Export CSV</button>
+        <button class="btn danger" onclick="resetAll()">Reset Excel</button>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card c-blue"><div class="kpi-label">Total elements</div><div class="kpi-value" id="kpi-total">-</div><div class="kpi-detail">Tous postes</div></div>
+      <div class="kpi-card c-green"><div class="kpi-label">Termines</div><div class="kpi-value" id="kpi-done">-</div><div class="kpi-detail" id="kpi-pct">-</div></div>
+      <div class="kpi-card c-yellow"><div class="kpi-label">Restants</div><div class="kpi-value" id="kpi-left">-</div><div class="kpi-detail">A planifier</div></div>
+      <div class="kpi-card c-purple"><div class="kpi-label">Types d'entretien</div><div class="kpi-value" id="kpi-sheets">-</div><div class="kpi-detail">Types d'entretien</div></div>
+    </div>
+
+    <!-- Interventions KPIs -->
+    <div class="section-title" style="margin-top:.5rem;">Interventions réseau
+      <a href="https://diascelso.github.io/Tableau-de-bord-intervention-LA/" target="_blank"
+        style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-left:.75rem;text-decoration:none;">
+        &#8599; Voir le tableau de bord
+      </a>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem;">
+      <div class="kpi-card c-blue" style="display:flex;align-items:center;gap:1.25rem;">
+        <div style="font-size:2rem;">&#128197;</div>
+        <div>
+          <div class="kpi-label">Interventions cette année</div>
+          <div class="kpi-value" id="kpi-int-year" style="font-size:2.1rem;">...</div>
+          <div class="kpi-detail" id="kpi-int-year-lbl">Depuis janvier 2026</div>
+        </div>
+      </div>
+      <div class="kpi-card c-green" style="display:flex;align-items:center;gap:1.25rem;">
+        <div style="font-size:2rem;">&#128200;</div>
+        <div>
+          <div class="kpi-label">Interventions ce mois</div>
+          <div class="kpi-value" id="kpi-int-month" style="font-size:2.1rem;">...</div>
+          <div class="kpi-detail" id="kpi-int-month-lbl">Ce mois-ci</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:210px 1fr;gap:1.25rem;margin-bottom:2rem;align-items:start;">
+      <div class="ring-block">
+        <div class="ring-container">
+          <svg class="ring-svg" width="170" height="170" viewBox="0 0 170 170">
+            <circle class="ring-track" cx="85" cy="85" r="70"/>
+            <circle class="ring-fill" id="ring-fill" cx="85" cy="85" r="70" stroke-dasharray="439.8" stroke-dashoffset="439.8"/>
+          </svg>
+          <div class="ring-label">
+            <span class="ring-pct" id="ring-pct">0%</span>
+            <span class="ring-text">Avancement</span>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="leg"><div class="leg-dot" style="background:var(--accent)"></div>Termines</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--border)"></div>Restants</div>
+        </div>
+      </div>
+      <div class="chart-block">
+        <div class="section-title" style="margin-bottom:1rem;">Avancement par types d'entretien</div>
+        <svg id="bar-chart" width="100%" height="200" style="display:block;"></svg>
+      </div>
+    </div>
+    <div class="section-title">Activite recente (temps reel)</div>
+    <div class="activity-wrap" id="activity-log"><div style="color:var(--muted);font-family:var(--mono);font-size:.78rem;">Aucune activite.</div></div>
+    <div class="section-title">Détail par type d'entretien — cliquer pour saisir</div>
+    <div class="cat-grid" id="cat-grid"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pwd">
+  <div class="modal">
+    <div class="modal-title">Acces Management</div>
+    <div class="modal-sub">Ce tableau de bord est reserve aux responsables. Entrez le code d acces.</div>
+    <input class="modal-input" id="pwd-input" type="password" placeholder="Code d acces..." onkeydown="if(event.key==='Enter')checkPwd()">
+    <div class="modal-err" id="pwd-err">Code incorrect.</div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="closePwdModal()">Annuler</button>
+      <button class="modal-btn primary" onclick="checkPwd()">Acceder</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ADMIN VIEW -->
+<div id="view-admin" class="view">
+  <div class="container">
+    <div class="dash-top">
+      <div>
+        <div class="dash-title">Ajouter un poste technique</div>
+        <div class="dash-sub">Le nouveau fichier HTML sera généré et téléchargeable directement</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+      <!-- Form -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div class="section-title">Année en cours</div>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem;">
+          <input id="admin-year" type="text" value="2026" placeholder="ex: 2026"
+            style="width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-family:var(--mono);font-size:1rem;outline:none;text-align:center;font-weight:700;">
+          <button class="btn success" onclick="saveYear()">&#10003; Appliquer</button>
+          <span style="font-size:.78rem;color:var(--muted);font-family:var(--mono);">Visible par tous</span>
+        </div>
+        <div class="section-title">Nouveau poste</div>
+
+        <label class="kpi-label" style="display:block;margin-bottom:.4rem;">Nom du poste technique</label>
+        <input id="new-sheet-name" type="text" placeholder="ex: Disjoncteurs TB"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-family:var(--mono);font-size:.875rem;outline:none;margin-bottom:1.25rem;">
+
+        <label class="kpi-label" style="display:block;margin-bottom:.4rem;">Éléments à entretenir (un par ligne)</label>
+        <textarea id="new-sheet-items" placeholder="ex:&#10;DJ01_Entretien&#10;DJ02_Entretien&#10;DJ03_Entretien"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-family:var(--mono);font-size:.82rem;outline:none;height:220px;resize:vertical;line-height:1.8;"></textarea>
+
+        <div style="display:flex;gap:.75rem;margin-top:1.25rem;">
+          <button class="btn success" style="flex:1;padding:.65rem;" onclick="addPoste()">&#43; Ajouter le poste</button>
+          <button class="btn" style="padding:.65rem 1rem;" onclick="previewPoste()">&#128065; Aperçu</button>
+        </div>
+        <div id="admin-msg" style="margin-top:.75rem;font-family:var(--mono);font-size:.78rem;display:none;"></div>
+      </div>
+
+      <!-- Preview + existing -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div class="section-title">Aperçu</div>
+        <div id="admin-preview" style="font-family:var(--mono);font-size:.78rem;color:var(--muted);line-height:1.9;">
+          Remplissez le formulaire et cliquez "Aperçu"...
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
+        <div class="section-title">Postes existants</div>
+        <div id="admin-existing" style="font-family:var(--mono);font-size:.75rem;color:var(--muted);line-height:2;"></div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-top:1.5rem;">
+      <div class="section-title">Télécharger le fichier mis à jour</div>
+      <div style="color:var(--muted);font-size:.82rem;margin-bottom:1.25rem;line-height:1.7;">
+        Une fois vos postes ajoutés, téléchargez le fichier HTML mis à jour et uploadez-le sur GitHub Pages pour le mettre en ligne.
+      </div>
+      <button class="btn primary" style="padding:.65rem 1.5rem;" onclick="downloadUpdated()">&#11015; Télécharger index.html mis à jour</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot" id="toast-dot"></div><span id="toast-msg"></span></div>
+
+<script>
+// =============================================
+//  CONFIGURATION FIREBASE — A MODIFIER
+// =============================================
+const FIREBASE_CONFIG = {
+  apiKey:      "AIzaSyDVTvV5J4o98jA7kCzmpFqsisg-zOHo4Xs",
+  projectId:   "suivi-entretien-la",
+  databaseURL: "https://suivi-entretien-la-default-rtdb.europe-west1.firebasedatabase.app"
+};
+// =============================================
+
+const SHEETS = {
+  "Entr. Rack Aig.": [
+    "Aig. 1 rack — GPIL-TB-AI-00043",
+    "Aig. 10 rack — GPIL-TB-AI-00004",
+    "Aig. 11 rack — GPIL-TB-AI-00005",
+    "Aig. 16 rack — GPIL-TB-AI-00008",
+    "Aig. 14 rack — GPIL-TB-AI-00006",
+    "Aig. 15 rack — GPIL-TB-AI-00007",
+    "Aig. 66 rack — GPIL-TB-AI-00024",
+    "Aig. 22 rack — GPIL-TB-AI-00010",
+    "Aig. 23 rack — GPIL-TB-AI-00011",
+    "Aig. 24 rack — GPIL-TB-AI-00012",
+    "Aig. 31 rack — GPIL-TB-AI-00013",
+    "Aig. 21 rack — GPIL-TB-AI-00009",
+    "Aig. 69 rack — GPIL-TB-AI-00027",
+    "Aig. 36 rack — GPIL-TB-AI-00017",
+    "Aig. 37 rack — GPIL-TB-AI-00018",
+    "Aig. 33 rack — GPIL-TB-AI-00014",
+    "Aig. 76 rack — GPIL-TB-AI-00030",
+    "Aig. 77 rack — GPIL-TB-AI-00031",
+    "Aig. 78 rack — GPIL-TB-AI-00032",
+    "Aig. 61 rack — GPIL-TB-AI-00019",
+    "Aig. 67 rack — GPIL-TB-AI-00025",
+    "Aig. 62 rack — GPIL-TB-AI-00020",
+    "Aig. 35 rack — GPIL-TB-AI-00016",
+    "Aig. 34 rack — GPIL-TB-AI-00015",
+    "Aig. 64 rack — GPIL-TB-AI-00022",
+    "Aig. 65 rack — GPIL-TB-AI-00023",
+    "Aig. 68 rack — GPIL-TB-AI-00026",
+    "Aig. 75 rack — GPIL-TB-AI-00029",
+    "Aig. 73 rack — GPIL-TB-AI-00028",
+    "Aig. 71 rack — GPIL-TB-AI-00001",
+    "Aig. 72 rack — GPIL-TB-AI-00002",
+    "Aig. 74 rack — GPIL-TB-AI-00003",
+    "Aig. 70 rack — GPIL-TB-AI-00033",
+    "Aig. 70-1 rack — GPIL-TB-AI-00034",
+    "Aig. 70-2 rack — GPIL-TB-AI-00035",
+    "Aig. 70-3 rack — GPIL-TB-AI-00036",
+    "Aig. 70-4 rack — GPIL-TB-AI-00037",
+    "Aig. 70-5 rack — GPIL-TB-AI-00038",
+    "Aig. 70-6 rack — GPIL-TB-AI-00039",
+    "Aig. 70-7 rack — GPIL-TB-AI-00040",
+    "Aig. 70-8 rack — GPIL-TB-AI-00041"
+  ],
+  "Entr. STB": [
+    "STB01 — GPIL-TB-SE-00001",
+    "STB02 — GPIL-TB-SE-00002",
+    "STB03 — GPIL-TB-SE-00003",
+    "STB04 — GPIL-TB-SE-00004",
+    "STB05 — GPIL-TB-SE-00005",
+    "STB06 — GPIL-TB-SE-00006",
+    "STB07 — GPIL-TB-SE-00007",
+    "STB31 — GPIL-TB-SE-00031",
+    "STB08 — GPIL-TB-SE-00008",
+    "STB09 — GPIL-TB-SE-00009",
+    "STB10 — GPIL-TB-SE-00010",
+    "STB11 — GPIL-TB-SE-00011",
+    "STB65 — GPIL-TB-SE-00092",
+    "STB12 — GPIL-TB-SE-00012",
+    "STB13 — GPIL-TB-SE-00013",
+    "STB18 — GPIL-TB-SE-00018",
+    "STB20 — GPIL-TB-SE-00020",
+    "STB16 — GPIL-TB-SE-00016",
+    "STB19 — GPIL-TB-SE-00019",
+    "STB40 — GPIL-TB-SE-00040",
+    "STB41 — GPIL-TB-SE-00041",
+    "STB32 — GPIL-TB-SE-00032",
+    "STB33 — GPIL-TB-SE-00033",
+    "STB34 — GPIL-TB-SE-00034",
+    "STB35 — GPIL-TB-SE-00035",
+    "STB21 — GPIL-TB-SE-00021",
+    "STB22 — GPIL-TB-SE-00022",
+    "STB63 — GPIL-TB-SE-00090",
+    "STB64 — GPIL-TB-SE-00091",
+    "STB29 — GPIL-TB-SE-00029",
+    "STB30 — GPIL-TB-SE-00030",
+    "STB25 — GPIL-TB-SE-00025",
+    "STB26 — GPIL-TB-SE-00026",
+    "STB27 — GPIL-TB-SE-00027",
+    "STB28 — GPIL-TB-SE-00028",
+    "STB53 — GPIL-TB-SE-00053",
+    "STB54 — GPIL-TB-SE-00054",
+    "STB46 — GPIL-TB-SE-00046",
+    "STB47 — GPIL-TB-SE-00047",
+    "STB45 — GPIL-TB-SE-00045",
+    "STB44 — GPIL-TB-SE-00034",
+    "STB43 — GPIL-TB-SE-00035",
+    "STB42 — GPIL-TB-SE-00036",
+    "STB36 — GPIL-TB-SE-00036",
+    "STB37 — GPIL-TB-SE-00037",
+    "STB48 — GPIL-TB-SE-00048",
+    "STB38 — GPIL-TB-SE-00038",
+    "STB39 — GPIL-TB-SE-00039",
+    "STB59 — GPIL-TB-SE-00059",
+    "STB60 — GPIL-TB-SE-00060",
+    "STB61 — GPIL-TB-SE-00088",
+    "STB62 — GPIL-TB-SE-00087",
+    "STB57 — GPIL-TB-SE-00057",
+    "STB58 — GPIL-TB-SE-00058",
+    "STB55 — GPIL-TB-SE-00055",
+    "STB56 — GPIL-TB-SE-00056",
+    "STB17 — GPIL-TB-SE-00017",
+    "STB14 — GPIL-TB-SE-00014",
+    "STB15 — GPIL-TB-SE-00015",
+    "STB49 — GPIL-TB-SE-00049",
+    "STB50 — GPIL-TB-SE-00050",
+    "STB51 — GPIL-TB-SE-00051",
+    "STB52 — GPIL-TB-SE-00052",
+    "STB23 — GPIL-TB-SE-00023",
+    "STB24 — GPIL-TB-SE-00024",
+    "STB66 — GPIL-TB-SE-00093",
+    "STB67 — GPIL-TB-SE-00094",
+  ],
+  "Entr. Cr. TB-TB": [
+    "CR TB-TB 01 — GPIL-TB-CR-00050",
+    "CR TB-TB 02 — GPIL-TB-CR-00051",
+    "CR TB-TB 03 — GPIL-TB-CR-00052",
+    "CR TB-TB 04 — GPIL-TB-CR-00053",
+    "CR TB-TB 05 — GPIL-TB-CR-00054",
+    "CR TB-TB 06 — GPIL-TB-CR-00055",
+    "CR TB-TB 07 — GPIL-TB-CR-00056",
+    "CR TB-TB 08 — GPIL-TB-CR-00057",
+    "CR TB-TB 09 — GPIL-TB-CR-00058",
+    "CR TB-TB 10 — GPIL-TB-CR-00059",
+    "CR TB-TB 11 — GPIL-TB-CR-00060",
+    "CR TB-TB 12 — GPIL-TB-CR-00061",
+    "CR TB-TB 13 — GPIL-TB-CR-00062",
+    "CR TB-TB 14 — GPIL-TB-CR-00063",
+    "CR TB-TB 15 — GPIL-TB-CR-00064",
+    "CR TB-TB 16 — GPIL-TB-CR-00065",
+    "CR TB-TB 17 — GPIL-TB-CR-00066",
+    "CR TB-TB 18 — GPIL-TB-CR-00067",
+    "CR TB-TB 19 — GPIL-TB-CR-00068",
+    "CR TB-TB 20 — GPIL-TB-CR-00069",
+    "CR TB-TB 21 — GPIL-TB-CR-00070",
+    "CR TB-TB 22 — GPIL-TB-CR-00001",
+    "CR TB-TB 23 — GPIL-TB-CR-00071",
+    "CR TB-TB 24 — GPIL-TB-CR-00072",
+    "CR TB-TB 25 — GPIL-TB-CR-00073",
+    "CR TB-TB 26 — GPIL-TB-CR-00074",
+    "CR TB-TB 27 — GPIL-TB-CR-00075",
+    "CR TB-TB 28 — GPIL-TB-CR-00076",
+    "CR TB-TB 29 — GPIL-TB-CR-00077",
+    "CR TB-TB 30 — GPIL-TB-CR-00078"
+  ],
+  "Entr. Cr. TW-TW": [
+    "Cr TW-TW 01 — GPIL-TW-CR-00007",
+    "Cr TW-TW 02 — GPIL-TW-CR-00008",
+    "Cr TW-TW 03 — GPIL-TW-CR-00009",
+    "Cr TW-TW 04 — GPIL-TW-CR-00014",
+    "Cr TW-TW 05 — GPIL-TW-CR-00015",
+    "Cr TW-TW 06 — GPIL-TW-CR-00016",
+    "Cr TW-TW 07 — GPIL-TW-CR-00017",
+    "Cr TW-TW 08 — GPIL-TW-CR-00018",
+    "Cr TW-TW 09 — GPIL-TW-CR-00019",
+    "Cr TW-TW 10 — GPIL-TW-CR-00020",
+    "Cr TW-TW 11 — GPIL-TW-CR-00001",
+    "Cr TW-TW 12 — GPIL-TW-CR-00003",
+    "Cr TW-TW 13 — GPIL-TW-CR-00021",
+    "Cr TW-TW 14 — GPIL-TW-CR-00004",
+    "Cr TW-TW 15 — GPIL-TW-CR-00002",
+    "Cr TW-TW 16 — GPIL-TW-CR-00011",
+    "Cr TW-TW 17 — GPIL-TW-CR-00012",
+    "Cr TW-TW 18 — GPIL-TW-CR-00013",
+    "Cr TW-TW 19 — GPIL-TW-CR-00005",
+    "Cr TW-TW 20 — GPIL-TW-CR-00006",
+    "Cr TW-TW 21 — GPIL-TW-CR-00022",
+    "Cr TW-TW 22 — GPIL-TW-CR-00023",
+    "Cr TW-TW 23 — GPIL-TW-CR-00024",
+    "Cr TW-TW 24 — GPIL-TW-CR-00025",
+    "Cr TW-TW 25 — GPIL-TW-CR-00026"
+  ],
+  "Entr. Arm-TB": [
+    "A6_ARM_TB — GPIR-TB-AA-00001",
+    "A10_ARM_TB — GPIR-TB-AA-00002",
+    "A13_ARM_TB — GPIR-TB-AA-00003",
+    "J1_ARM_TB — GPIR-TB-AA-00004",
+    "A1_ARM_TB — GPIR-TB-AA-00005",
+    "A12_ARM_TB — GPIR-TB-AA-00006",
+    "A3_ARM_TB — GPIR-TB-AA-00007",
+    "A8_ARM_TB — GPIR-TB-AA-00009",
+    "C11_ARM_TB — GPIR-TB-AA-00010",
+    "C2_ARM_TB — GPIR-TB-AA-00011",
+    "C4_ARM_TB — GPIR-TB-AA-00012",
+    "C6_ARM_TB — GPIR-TB-AA-00013",
+    "C7/E2_ARM_TB — GPIR-TB-AA-00014",
+    "D2_ARM_TB — GPIR-TB-AA-00015",
+    "D3_ARM_TB — GPIR-TB-AA-00016",
+    "P4_ARM_TB — GPIR-TB-AA-00017",
+    "D4_ARM_TB — GPIR-TB-AA-00018",
+    "D5/A2_ARM_TB — GPIR-TB-AA-00019",
+    "E1_ARM_TB — GPIR-TB-AA-00021",
+    "E2/C7_ARM_TB — GPIR-TB-AA-00022",
+    "F1_ARM_TB — GPIR-TB-AA-00023",
+    "F2_ARM_TB — GPIR-TB-AA-00024",
+    "F3_ARM_TB — GPIR-TB-AA-00025",
+    "F4_ARM_TB — GPIR-TB-AA-00026",
+    "K1_ARM_TB — GPIR-TB-AA-00027",
+    "L1_ARM_TB — GPIR-TB-AA-00028",
+    "L3_ARM_TB — GPIR-TB-AA-00030",
+    "M1_ARM_TB — GPIR-TB-AA-00031",
+    "N1_ARM_TB — GPIR-TB-AA-00032",
+    "N2_ARM_TB — GPIR-TB-AA-00033",
+    "P1_ARM_TB — GPIR-TB-AA-00034",
+    "P2_ARM_TB — GPIR-TB-AA-00035",
+    "U3_ARM_TB — GPIR-TB-AA-00037",
+    "A4/D8_ARM_TB — GPIR-TB-AA-00038"
+  ],
+  "Mesure isol. TB": [
+    "A6_ARM_TB — GPIR-TB-AA-00001",
+    "A10_ARM_TB — GPIR-TB-AA-00002",
+    "A13_ARM_TB — GPIR-TB-AA-00003",
+    "J1_ARM_TB — GPIR-TB-AA-00004",
+    "A1_ARM_TB — GPIR-TB-AA-00005",
+    "A12_ARM_TB — GPIR-TB-AA-00006",
+    "A3_ARM_TB — GPIR-TB-AA-00007",
+    "A8_ARM_TB — GPIR-TB-AA-00009",
+    "C11_ARM_TB — GPIR-TB-AA-00010",
+    "C2_ARM_TB — GPIR-TB-AA-00011",
+    "C4_ARM_TB — GPIR-TB-AA-00012",
+    "C6_ARM_TB — GPIR-TB-AA-00013",
+    "C7/E2_ARM_TB — GPIR-TB-AA-00014",
+    "D2_ARM_TB — GPIR-TB-AA-00015",
+    "D3_ARM_TB — GPIR-TB-AA-00016",
+    "P4_ARM_TB — GPIR-TB-AA-00017",
+    "D4_ARM_TB — GPIR-TB-AA-00018",
+    "D5/A2_ARM_TB — GPIR-TB-AA-00019",
+    "E1_ARM_TB — GPIR-TB-AA-00021",
+    "E2/C7_ARM_TB — GPIR-TB-AA-00022",
+    "F1_ARM_TB — GPIR-TB-AA-00023",
+    "F2_ARM_TB — GPIR-TB-AA-00024",
+    "F3_ARM_TB — GPIR-TB-AA-00025",
+    "F4_ARM_TB — GPIR-TB-AA-00026",
+    "K1_ARM_TB — GPIR-TB-AA-00027",
+    "L1_ARM_TB — GPIR-TB-AA-00028",
+    "L3_ARM_TB — GPIR-TB-AA-00030",
+    "M1_ARM_TB — GPIR-TB-AA-00031",
+    "N1_ARM_TB — GPIR-TB-AA-00032",
+    "N2_ARM_TB — GPIR-TB-AA-00033",
+    "P1_ARM_TB — GPIR-TB-AA-00034",
+    "P2_ARM_TB — GPIR-TB-AA-00035",
+    "U3_ARM_TB — GPIR-TB-AA-00037",
+    "A4/D8_ARM_TB — GPIR-TB-AA-00038"
+  ],
+  "Entr. CaR": [
+    "CaR 01 — GPIL-TB-CR-00079",
+    "CaR 02 — GPIL-TB-CR-00080",
+    "CaR 03 — GPIL-TB-CR-00081",
+    "CaR 04 — GPIL-TB-CR-00082",
+    "CaR 05 — GPIL-TB-CR-00083",
+    "CaR 06 — GPIL-TB-CR-00084",
+    "CaR 07 — GPIL-TB-CR-00085",
+    "CaR 08 — GPIL-TB-CR-00086",
+    "CaR 09 — GPIL-TB-CR-00087",
+    "CaR 10 — GPIL-TB-CR-00088",
+    "CaR 11 — GPIL-TB-CR-00089",
+    "CaR 13 — GPIL-TB-CR-00091",
+    "CaR 14 — GPIL-TB-CR-00092",
+    "CaR 15 — GPIL-TB-CR-00093",
+    "CaR 16 — GPIL-TB-CR-00094",
+    "CaR 17 — GPIL-TB-CR-00095",
+    "CaR 18 — GPIL-TB-CR-00096",
+    "CaR 19 — GPIL-TB-CR-00097",
+    "CaR 20 — GPIL-TB-CR-00098",
+    "CaR 21 — GPIL-TB-CR-00099",
+    "CaR 22 — GPIL-TB-CR-00100",
+    "CaR 23 — GPIL-TB-CR-00101",
+    "CaR 24 — GPIL-TB-CR-00102",
+    "CaR 27 — GPIL-TB-CR-00105",
+    "CaR 28 — GPIL-TB-CR-00106",
+    "CaR 29 — GPIL-TB-CR-00107",
+    "CaR 30 — GPIL-TB-CR-00108"
+  ],
+  "Entr. Aig. 24V": [
+    "Aig. 1 24V — GPIL-TB-AI-00043",
+    "Aig 10 24V — GPIL-TB-AI-00004",
+    "Aig 11 24V — GPIL-TB-AI-00005",
+    "Aig 13 24V",
+    "Aig 14 24V — GPIL-TB-AI-00006",
+    "Aig 15 24V — GPIL-TB-AI-00007",
+    "Aig 16 24V — GPIL-TB-AI-00008",
+    "Aig 21 24V — GPIL-TB-AI-00009",
+    "Aig 22 24V — GPIL-TB-AI-00010",
+    "Aig 23 24V — GPIL-TB-AI-00011",
+    "Aig 24 24V — GPIL-TB-AI-00012",
+    "Aig 31 24V — GPIL-TB-AI-00013",
+    "Aig 33 24V — GPIL-TB-AI-00014",
+    "Aig 34 24V — GPIL-TB-AI-00015",
+    "Aig 35 24V — GPIL-TB-AI-00016",
+    "Aig 36 24V — GPIL-TB-AI-00017",
+    "Aig 37 24V — GPIL-TB-AI-00018",
+    "Aig 61 24V — GPIL-TB-AI-00019",
+    "Aig 62 24V — GPIL-TB-AI-00020",
+    "Aig 64 24V — GPIL-TB-AI-00022",
+    "Aig 65 24V — GPIL-TB-AI-00023",
+    "Aig 66 24V — GPIL-TB-AI-00024",
+    "Aig 67 24V — GPIL-TB-AI-00025",
+    "Aig 68 24V — GPIL-TB-AI-00026",
+    "Aig 69 24V — GPIL-TB-AI-00027",
+    "Aig 70 24V — GPIL-TB-AI-00033",
+    "Aig 70-1 24V — GPIL-TB-AI-00034",
+    "Aig 70-2 24V — GPIL-TB-AI-00035",
+    "Aig 70-3 24V — GPIL-TB-AI-00036",
+    "Aig 70-4 24V — GPIL-TB-AI-00037",
+    "Aig 70-5 24V — GPIL-TB-AI-00038",
+    "Aig 70-6 24V — GPIL-TB-AI-00039",
+    "Aig 70-7 24V — GPIL-TB-AI-00040",
+    "Aig 70-8 24V — GPIL-TB-AI-00041",
+    "Aig 71 24V — GPIL-TB-AI-00001",
+    "Aig 72 24V — GPIL-TB-AI-00002",
+    "Aig 73 24V — GPIL-TB-AI-00028",
+    "Aig 74 24V — GPIL-TB-AI-00003",
+    "Aig 75 24V — GPIL-TB-AI-00029",
+    "Aig 76 24V — GPIL-TB-AI-00030",
+    "Aig 77 24V — GPIL-TB-AI-00031",
+    "Aig 78 24V — GPIL-TB-AI-00032"
+  ],
+  "Entr. Cr. TW-TB": [
+    "CR TW-TB 01 — GPIL-MI-CR-00042",
+    "CR TW-TB 02 — GPIL-MI-CR-00043",
+    "CR TW-TB 03 — GPIL-MI-CR-00044",
+    "CR TW-TB 04 — GPIL-MI-CR-00048",
+    "CR TW-TB 05 — GPIL-MI-CR-00046",
+    "CR TW-TB 06 — GPIL-MI-CR-00047",
+    "CR TW-TB 07 — GPIL-MI-CR-00045",
+    "CR TW-TB 08 — GPIL-MI-CR-00049",
+    "CR TW-TB 09 — GPIL-MI-CR-00050",
+    "CR TW-TB 10 — GPIL-MI-CR-00051",
+    "CR TW-TB 11 — GPIL-MI-CR-00052",
+    "CR TW-TB 12 — GPIL-MI-CR-00053",
+    "CR TW-TB 13 — GPIL-MI-CR-00054",
+    "CR TW-TB 14 — GPIL-MI-CR-00056",
+    "CR TW-TB 15 — GPIL-MI-CR-00057",
+    "CR TW-TB 16 — GPIL-MI-CR-00058",
+    "CR TW-TB 17 — GPIL-MI-CR-00059",
+    "CR TW-TB 18 — GPIL-MI-CR-00060",
+    "CR TW-TB 19 — GPIL-MI-CR-00061",
+    "CR TW-TB 20 — GPIL-MI-CR-00062",
+    "CR TW-TB 21 — GPIL-MI-CR-00063",
+    "CR TW-TB 22 — GPIL-MI-CR-00064",
+    "CR TW-TB 23 — GPIL-MI-CR-00065",
+    "CR TW-TB 24 — GPIL-MI-CR-00066",
+    "CR TW-TB 25 — GPIL-MI-CR-00067",
+    "CR TW-TB 26 — GPIL-MI-CR-00068",
+    "CR TW-TB 27 — GPIL-MI-CR-00069",
+    "CR TW-TB 28 — GPIL-MI-CR-00071",
+    "CR TW-TB 29 — GPIL-MI-CR-00072",
+    "CR TW-TB 30 — GPIL-MI-CR-00073",
+    "CR TW-TB 31 — GPIL-MI-CR-00074",
+    "CR TW-TB 32 — GPIL-MI-CR-00075",
+    "CR TW-TB 33 — GPIL-MI-CR-00076",
+    "CR TW-TB 34 — GPIL-MI-CR-00077",
+    "CR TW-TB 35 — GPIL-MI-CR-00078",
+    "CR TW-TB 36 — GPIL-MI-CR-00079",
+    "CR TW-TB 37 — GPIL-MI-CR-00079",
+    "CR TW-TB 38 — GPIL-MI-CR-00081",
+    "CR TW-TB 39 — GPIL-MI-CR-00082",
+    "CR TW-TB 40 — GPIL-MI-CR-00055",
+    "CR TW-TB 42 — GPIL-MI-CR-00070"
+  ],
+  "Entr. Sac MaT": [
+    "B4_sacs de mise à terre — GPIR-IS-MT-00001",
+    "Pontage S12.1/S12.2a_sacs de mise à terr — GPIR-IS-MT-00002",
+    "B1_sacs de mise à terre — GPIR-IS-MT-00003",
+    "Pon_TW_De Staël_sacs de mise à terre — GPIR-IS-MT-00005",
+    "B2_sacs de mise à terre — GPIR-IS-MT-00006",
+    "Pon_TW_Carouge_sacs de mise à terre — GPIR-IS-MT-00007",
+    "B3_sacs de mise à terre — GPIR-IS-MT-00008",
+    "O1_sacs de mise à terre — GPIR-IS-MT-00009",
+    "Pon_TW_Octroi_sacs de mise à terre — GPIR-IS-MT-00010",
+    "O2_sacs de mise à terre — GPIR-IS-MT-00011",
+    "Pon_TW_Augustins_sacs de mise à terre — GPIR-IS-MT-00012",
+    "Pon_TW_Rpt Plainpalais L18_sacs de mise — GPIR-IS-MT-00013",
+    "C1_sacs de mise à terre — GPIR-IS-MT-00014",
+    "C5_sacs de mise à terre — GPIR-IS-MT-00015",
+    "Pon_TW_Bastion_sacs de mise à terre — GPIR-IS-MT-00016",
+    "A14_sacs de mise à terre — GPIR-IS-MT-00017",
+    "Pon_TW_Corraterie  lg 12_sacs de mise à — GPIR-IS-MT-00018",
+    "Pon_TW_Corraterie  lg 14_sacs de mise à — GPIR-IS-MT-00019",
+    "C9_sacs de mise à terre — GPIR-IS-MT-00020",
+    "Pon_TW_Rue d’Italie_sacs de mise à terre — GPIR-IS-MT-00021",
+    "C10_sacs de mise à terre — GPIR-IS-MT-00022",
+    "Pon_TW_Bvd Helvetique_sacs de mise à ter — GPIR-IS-MT-00023",
+    "C8_sacs de mise à terre — GPIR-IS-MT-00024",
+    "E5_sacs de mise à terre — GPIR-IS-MT-00025",
+    "Pon_TW_Eaux-vives_sacs de mise à terre — GPIR-IS-MT-00026",
+    "E3_sacs de mise à terre — GPIR-IS-MT-00027",
+    "G1_sacs de mise à terre — GPIR-IS-MT-00028",
+    "Pon_TW_Grangettes_sacs de mise à terre — GPIR-IS-MT-00029",
+    "G2_sacs de mise à terre — GPIR-IS-MT-00030",
+    "H1_sacs de mise à terre — GPIR-IS-MT-00031",
+    "Pon_TW_louis Favre_sacs de mise à terre — GPIR-IS-MT-00032",
+    "H2_sacs de mise à terre — GPIR-IS-MT-00033",
+    "W1_sacs de mise à terre — GPIR-IS-MT-00034",
+    "Pon_TW_Moillesulaz_sacs de mise à terre — GPIR-IS-MT-00035",
+    "W2_sacs de mise à terre — GPIR-IS-MT-00036",
+    "ZA1_sacs de mise à terre — GPIR-IS-MT-00037",
+    "Pon_TW_France_sacs de mise à terre — GPIR-IS-MT-00038",
+    "ZA2_sacs de mise à terre — GPIR-IS-MT-00039",
+    "S2_sacs de mise à terre — GPIR-IS-MT-00040",
+    "Pon_TW_Av. de France_sacs de mise à terr — GPIR-IS-MT-00041",
+    "S3_sacs de mise à terre — GPIR-IS-MT-00042",
+    "P3_sacs de mise à terre — GPIR-IS-MT-00043",
+    "Pon_TW_Cornavin Notre Dame_sacs de mise — GPIR-IS-MT-00044",
+    "P5_sacs de mise à terre — GPIR-IS-MT-00045",
+    "D9_sacs de mise à terre — GPIR-IS-MT-00046",
+    "Pon_TW_Stand Georges Favon_sacs de mise — GPIR-IS-MT-00047",
+    "C3_sacs de mise à terre — GPIR-IS-MT-00048",
+    "A9_sacs de mise à terre — GPIR-IS-MT-00049",
+    "Pon_TW Place du Cirque_sacs de mise à te — GPIR-IS-MT-00050",
+    "Pon_TW_Henri Dunant_sacs de mise à terre — GPIR-IS-MT-00051",
+    "A7_sacs de mise à terre — GPIR-IS-MT-00052",
+    "R1_sacs de mise à terre — GPIR-IS-MT-00053",
+    "Pon_TW_Pont-Rouge_sacs de mise à terre — GPIR-IS-MT-00054",
+    "R2_sacs de mise à terre — GPIR-IS-MT-00055",
+    "T1_sacs de mise à terre — GPIR-IS-MT-00056",
+    "Pon_TW_Palettes_sacs de mise à terre — GPIR-IS-MT-00057",
+    "T2_sacs de mise à terre — GPIR-IS-MT-00058",
+    "X2_sacs de mise à terre — GPIR-IS-MT-00059",
+    "Pon_TW_Mandement_sacs de mise à terre — GPIR-IS-MT-00060",
+    "X1_sacs de mise à terre — GPIR-IS-MT-00061",
+    "V3_sacs de mise à terre — GPIR-IS-MT-00062",
+    "Pon_TW_Jardin-Alpin 1_sacs de mise à ter — GPIR-IS-MT-00063",
+    "V2_sacs de mise à terre — GPIR-IS-MT-00064",
+    "Pon_TW_Vaudagne_sacs de mise à terre — GPIR-IS-MT-00065",
+    "V1_sacs de mise à terre — GPIR-IS-MT-00066",
+    "Pon_TW_Jardin-Alpin 2_sacs de mise à ter — GPIR-IS-MT-00067",
+    "MàT CMS_sacs de mise à terre — GPIR-IS-MT-00068",
+    "U2_sacs de mise à terre — GPIR-IS-MT-00069",
+    "Pon_TW_Pré-Bois_sacs de mise à terre — GPIR-IS-MT-00070",
+    "U1_sacs de mise à terre — GPIR-IS-MT-00071",
+    "F6_sacs de mise à terre — GPIR-IS-MT-00072",
+    "Pon_TW_Bouchet_sacs de mise à terre — GPIR-IS-MT-00073",
+    "F5_sacs de mise à terre — GPIR-IS-MT-00074",
+    "P8_sacs de mise à terre — GPIR-IS-MT-00075",
+    "Pon_TW_Montbrillant_sacs de mise à terre — GPIR-IS-MT-00076",
+    "Pon_TW_Cornavin Coutance_sacs de mise à — GPIR-IS-MT-00077",
+    "P6_sacs de mise à terre — GPIR-IS-MT-00078",
+    "A17_sacs de mise à terre — GPIR-IS-MT-00079",
+    "D7_sacs de mise à terre — GPIR-IS-MT-00080",
+    "Pon_TW_Pont de l'île_sacs de mise à terr — GPIR-IS-MT-00081",
+    "Pon_TW_Quai de la Poste_sacs de mise à t — GPIR-IS-MT-00082",
+    "Pon_TW_Coulouvrenière_sacs de mise à ter — GPIR-IS-MT-00083",
+    "A11_sacs de mise à terre — GPIR-IS-MT-00084",
+    "Pon_TW_Arquebuse_sacs de mise à terre — GPIR-IS-MT-00085",
+    "D1_sacs de mise à terre — GPIR-IS-MT-00086",
+    "A16_sacs de mise à terre — GPIR-IS-MT-00087",
+    "Pon_TW_Rpt Jonction_sacs de mise à terre — GPIR-IS-MT-00088",
+    "A15_sacs de mise à terre — GPIR-IS-MT-00089",
+    "L4_sacs de mise à terre — GPIR-IS-MT-00090",
+    "Pon_TW_Les Esserts_sacs de mise à terre — GPIR-IS-MT-00091",
+    "L5_sacs de mise à terre — GPIR-IS-MT-00092",
+    "Pon_TW_Onex_sacs de mise à terre — GPIR-IS-MT-00093",
+    "I2_sacs de mise à terre — GPIR-IS-MT-00094",
+    "Pon_TW_Vailly_sacs de mise à terre — GPIR-IS-MT-00095",
+    "B6_sacs de mise à terre — GPIR-IS-MT-00096",
+    "B5_sacs de mise à terre — GPIR-IS-MT-00097",
+    "B7_sacs de mise à terre — GPIR-IS-MT-00098",
+    "CMB_Zone_D_sacs de mise à terre — GPIR-IS-MT-00099",
+    "Y2_sacs de mise à terre — GPIR-IS-MT-00100",
+    "Y3_sacs de mise à terre — GPIR-IS-MT-00101",
+    "Y4_sacs de mise à terre — GPIR-IS-MT-00102",
+    "T3_sacs de mise à terre — GPIR-IS-MT-00103",
+    "T4_sacs de mise à terre — GPIR-IS-MT-00104",
+    "ZC1_sacs de mise à terre — GPIR-IS-MT-00105",
+    "ZC2_sacs de mise à terre — GPIR-IS-MT-00106",
+    "I1_sacs de mise à terre — GPIR-IS-MT-00107",
+    "Q1_sacs de mise à terre — GPIR-IS-MT-00108",
+    "I3_sacs de mise à terre — GPIR-IS-MT-00109",
+    "Q2_sacs de mise à terre — GPIR-IS-MT-00110",
+    "Pon_TW_Palettes (Piscine)_sacs de mise à — GPIR-IS-MT-00111",
+    "Pon_TW_ Semaille_ sacs de mise à terre — GPIR-IS-MT-00112",
+    "Pon_TW_Cherpines_sacs de mise à terre — GPIR-IS-MT-00113",
+    "Pon_TW_Confignon_sacs de mise à terre — GPIR-IS-MT-00114",
+    "Pon_TW_Pré-Marais_sacs de mise à terre — GPIR-IS-MT-00115",
+    "PON_TW_Rpt Plainpalais L12_sacs de mise — GPIR-IS-MT-00116",
+    "PON_TW_Rpt Plainpalais L17_sacs de mise — GPIR-IS-MT-00117",
+    "PON_TW_Lise Girardin_sacs de mise à terr — GPIR-IS-MT-00118",
+    "PON_TW_Moillesulaz Auto_sacs de mise à t — GPIR-IS-MT-00119"
+  ],
+  "Entr. Arm TW": [
+    "CMB_ZONE_D — GPIR-TW-AA-00001",
+    "B5_ARM_TW — GPIR-TW-AA-00002",
+    "B6_ARM_TW — GPIR-TW-AA-00003",
+    "B7_ARM_TW — GPIR-TW-AA-00004",
+    "B8_ARM_TW — GPIR-TW-AA-00005",
+    "A11_ARM_TW — GPIR-TW-AA-00006",
+    "A14_ARM_TW — GPIR-TW-AA-00007",
+    "A15_ARM_TW — GPIR-TW-AA-00008",
+    "A16_ARM_TW — GPIR-TW-AA-00009",
+    "A17_ARM_TW — GPIR-TW-AA-00010",
+    "A7_ARM_TW — GPIR-TW-AA-00011",
+    "A9_ARM_TW — GPIR-TW-AA-00012",
+    "B1_ARM_TW — GPIR-TW-AA-00013",
+    "B2_ARM_TW — GPIR-TW-AA-00014",
+    "B3_ARM_TW — GPIR-TW-AA-00015",
+    "B4_ARM_TW — GPIR-TW-AA-00016",
+    "C10_ARM_TW — GPIR-TW-AA-00017",
+    "C1_ARM_TW — GPIR-TW-AA-00018",
+    "C3_ARM_TW — GPIR-TW-AA-00019",
+    "C5_ARM_TW — GPIR-TW-AA-00020",
+    "C8_ARM_TW — GPIR-TW-AA-00021",
+    "C9_ARM_TW — GPIR-TW-AA-00022",
+    "D1_ARM_TW — GPIR-TW-AA-00023",
+    "D7_ARM_TW — GPIR-TW-AA-00024",
+    "D9_ARM_TW — GPIR-TW-AA-00025",
+    "E3_ARM_TW — GPIR-TW-AA-00026",
+    "E5_ARM_TW — GPIR-TW-AA-00027",
+    "F5_ARM_TW — GPIR-TW-AA-00028",
+    "F6_ARM_TW — GPIR-TW-AA-00029",
+    "G1_ARM_TW — GPIR-TW-AA-00030",
+    "G2_ARM_TW — GPIR-TW-AA-00031",
+    "H1_ARM_TW — GPIR-TW-AA-00032",
+    "H2_ARM_TW — GPIR-TW-AA-00033",
+    "I2_ARM_TW — GPIR-TW-AA-00034",
+    "L4_ARM_TW — GPIR-TW-AA-00035",
+    "L5_ARM_TW — GPIR-TW-AA-00036",
+    "O1_ARM_TW — GPIR-TW-AA-00037",
+    "O2_ARM_TW — GPIR-TW-AA-00038",
+    "P3_ARM_TW — GPIR-TW-AA-00039",
+    "P5_ARM_TW — GPIR-TW-AA-00040",
+    "P6_ARM_TW — GPIR-TW-AA-00041",
+    "P8_ARM_TW — GPIR-TW-AA-00042",
+    "R1_ARM_TW — GPIR-TW-AA-00043",
+    "R2_ARM_TW — GPIR-TW-AA-00044",
+    "S2_ARM_TW — GPIR-TW-AA-00045",
+    "S3_ARM_TW — GPIR-TW-AA-00046",
+    "T1_ARM_TW — GPIR-TW-AA-00047",
+    "T2_ARM_TW — GPIR-TW-AA-00048",
+    "U1_ARM_TW — GPIR-TW-AA-00049",
+    "U2_ARM_TW — GPIR-TW-AA-00050",
+    "V1_ARM_TW — GPIR-TW-AA-00051",
+    "V2_ARM_TW — GPIR-TW-AA-00052",
+    "V3_ARM_TW — GPIR-TW-AA-00053",
+    "X1_ARM_TW — GPIR-TW-AA-00054",
+    "W1_ARM_TW — GPIR-TW-AA-00055",
+    "W2_ARM_TW — GPIR-TW-AA-00056",
+    "ZA1_ARM_TW — GPIR-TW-AA-00057",
+    "ZA2_ARM_TW — GPIR-TW-AA-00058",
+    "X2_ARM_TW — GPIR-TW-AA-00059",
+    "T3_ARM_TW — GPIR-TW-AA-00063",
+    "I1_ARM_TW — GPIR-TW-AA-00064",
+    "Q2_ARM_TW — GPIR-TW-AA-00065",
+    "I3_ARM_TW — GPIR-TW-AA-00066",
+    "Q1_ARM_TW — GPIR-TW-AA-00067",
+    "T4_ARM_TW — GPIR-TW-AA-00068",
+    "ZC1_ARM_TW — GPIR-TW-AA-00069",
+    "ZC2_ARM_TW — GPIR-TW-AA-00070",
+    "MàT_CMC_TW — GPIR-TW-AA-00071"
+  ],
+  "Mesure isol. TW": [
+    "CMB_ZONE_D — GPIR-TW-AA-00001",
+    "B5_ARM_TW — GPIR-TW-AA-00002",
+    "B6_ARM_TW — GPIR-TW-AA-00003",
+    "B7_ARM_TW — GPIR-TW-AA-00004",
+    "B8_ARM_TW — GPIR-TW-AA-00005",
+    "A11_ARM_TW — GPIR-TW-AA-00006",
+    "A14_ARM_TW — GPIR-TW-AA-00007",
+    "A15_ARM_TW — GPIR-TW-AA-00008",
+    "A16_ARM_TW — GPIR-TW-AA-00009",
+    "A17_ARM_TW — GPIR-TW-AA-00010",
+    "A7_ARM_TW — GPIR-TW-AA-00011",
+    "A9_ARM_TW — GPIR-TW-AA-00012",
+    "B1_ARM_TW — GPIR-TW-AA-00013",
+    "B2_ARM_TW — GPIR-TW-AA-00014",
+    "B3_ARM_TW — GPIR-TW-AA-00015",
+    "B4_ARM_TW — GPIR-TW-AA-00016",
+    "C10_ARM_TW — GPIR-TW-AA-00017",
+    "C1_ARM_TW — GPIR-TW-AA-00018",
+    "C3_ARM_TW — GPIR-TW-AA-00019",
+    "C5_ARM_TW — GPIR-TW-AA-00020",
+    "C8_ARM_TW — GPIR-TW-AA-00021",
+    "C9_ARM_TW — GPIR-TW-AA-00022",
+    "D1_ARM_TW — GPIR-TW-AA-00023",
+    "D7_ARM_TW — GPIR-TW-AA-00024",
+    "D9_ARM_TW — GPIR-TW-AA-00025",
+    "E3_ARM_TW — GPIR-TW-AA-00026",
+    "E5_ARM_TW — GPIR-TW-AA-00027",
+    "F5_ARM_TW — GPIR-TW-AA-00028",
+    "F6_ARM_TW — GPIR-TW-AA-00029",
+    "G1_ARM_TW — GPIR-TW-AA-00030",
+    "G2_ARM_TW — GPIR-TW-AA-00031",
+    "H1_ARM_TW — GPIR-TW-AA-00032",
+    "H2_ARM_TW — GPIR-TW-AA-00033",
+    "I2_ARM_TW — GPIR-TW-AA-00034",
+    "L4_ARM_TW — GPIR-TW-AA-00035",
+    "L5_ARM_TW — GPIR-TW-AA-00036",
+    "O1_ARM_TW — GPIR-TW-AA-00037",
+    "O2_ARM_TW — GPIR-TW-AA-00038",
+    "P3_ARM_TW — GPIR-TW-AA-00039",
+    "P5_ARM_TW — GPIR-TW-AA-00040",
+    "P6_ARM_TW — GPIR-TW-AA-00041",
+    "P8_ARM_TW — GPIR-TW-AA-00042",
+    "R1_ARM_TW — GPIR-TW-AA-00043",
+    "R2_ARM_TW — GPIR-TW-AA-00044",
+    "S2_ARM_TW — GPIR-TW-AA-00045",
+    "S3_ARM_TW — GPIR-TW-AA-00046",
+    "T1_ARM_TW — GPIR-TW-AA-00047",
+    "T2_ARM_TW — GPIR-TW-AA-00048",
+    "U1_ARM_TW — GPIR-TW-AA-00049",
+    "U2_ARM_TW — GPIR-TW-AA-00050",
+    "V1_ARM_TW — GPIR-TW-AA-00051",
+    "V2_ARM_TW — GPIR-TW-AA-00052",
+    "V3_ARM_TW — GPIR-TW-AA-00053",
+    "X1_ARM_TW — GPIR-TW-AA-00054",
+    "W1_ARM_TW — GPIR-TW-AA-00055",
+    "W2_ARM_TW — GPIR-TW-AA-00056",
+    "ZA1_ARM_TW — GPIR-TW-AA-00057",
+    "ZA2_ARM_TW — GPIR-TW-AA-00058",
+    "X2_ARM_TW — GPIR-TW-AA-00059",
+    "T3_ARM_TW — GPIR-TW-AA-00063",
+    "I1_ARM_TW — GPIR-TW-AA-00064",
+    "Q2_ARM_TW — GPIR-TW-AA-00065",
+    "I3_ARM_TW — GPIR-TW-AA-00066",
+    "Q1_ARM_TW — GPIR-TW-AA-00067",
+    "T4_ARM_TW — GPIR-TW-AA-00068",
+    "ZC1_ARM_TW — GPIR-TW-AA-00069",
+    "ZC2_ARM_TW — GPIR-TW-AA-00070",
+    "MàT_CMC_TW — GPIR-TW-AA-00071",
+    "PON_TW_Bastion — GPIR-TW-AP-00001",
+    "PON_TW_Rpt Plainpalais L18 — GPIR-TW-AP-00002",
+    "PON_TW_Pont de l'île Bel-Air — GPIR-TW-AP-00003",
+    "PON_TW_S Henri Dunant — GPIR-TW-AP-00004",
+    "PON_TW_Place du Cirque — GPIR-TW-AP-00005",
+    "PON_TW_De Staël — GPIR-TW-AP-00006",
+    "PON_TW_Carouge — GPIR-TW-AP-00007",
+    "PON_TW_Quai de la poste — GPIR-TW-AP-00008",
+    "PON_TW_Stand — GPIR-TW-AP-00009",
+    "PON_TW_Boulevard Helvetique — GPIR-TW-AP-00010",
+    "PON_TW_Rue d'Italie — GPIR-TW-AP-00011",
+    "PON_TW_Arquebuse — GPIR-TW-AP-00012",
+    "PON_TW_Corraterie L14 — GPIR-TW-AP-00013",
+    "PON_TW_Corraterie L12 — GPIR-TW-AP-00014",
+    "PON_TW_Coulouvrenière — GPIR-TW-AP-00015",
+    "PON_TW_Eaux-Vives — GPIR-TW-AP-00016",
+    "PON_TW_Bouchet — GPIR-TW-AP-00017",
+    "PON_TW_Grangettes — GPIR-TW-AP-00018",
+    "PON_TW_Louis Favre — GPIR-TW-AP-00019",
+    "PON_TW_Confignon — GPIR-TW-AP-00020",
+    "PON_TW_Les Esserts — GPIR-TW-AP-00021",
+    "PON_TW_Onex — GPIR-TW-AP-00022",
+    "PON_TW_Octroi — GPIR-TW-AP-00023",
+    "PON_TW_Augustins — GPIR-TW-AP-00024",
+    "PON_TW_Cornavin - Montbrillant — GPIR-TW-AP-00025",
+    "PON_TW_Cornavin - Notre Dame — GPIR-TW-AP-00026",
+    "PON_TW_Cornavin - Coutance(Manor) — GPIR-TW-AP-00027",
+    "PON_TW_Pont-Rouge — GPIR-TW-AP-00028",
+    "PON_TW_Avenue de France — GPIR-TW-AP-00029",
+    "PON_TW_Palettes (automatique) — GPIR-TW-AP-00030",
+    "PON_TW_Pré-Bois — GPIR-TW-AP-00031",
+    "PON_TW_Vaudagne — GPIR-TW-AP-00032",
+    "PON_TW_Jardin Alpin I (automatique) — GPIR-TW-AP-00033",
+    "PON_TW_Jardon Alpin II (manuel) — GPIR-TW-AP-00034",
+    "PON_TW_Mandement — GPIR-TW-AP-00035",
+    "PON_TW_Palettes — GPIR-TW-AP-00036",
+    "PON_TW_Moillesulaz — GPIR-TW-AP-00037",
+    "PON_TW_Vailly — GPIR-TW-AP-00038",
+    "PON_TW_Pré-marais — GPIR-TW-AP-00039",
+    "PON_TW_RPT Jonction — GPIR-TW-AP-00040",
+    "PON_TW_Semailles — GPIR-TW-AP-00041",
+    "PON_TW_Cherpines — GPIR-TW-AP-00042",
+    "PON_TW_Trèfle Blanc — GPIR-TW-AP-00043",
+    "PON-TW-Moillesulaz AUTO — GPIR-TW-AP-00044",
+    "PON-TW-France — GPIR-TW-AP-00045",
+    "PON_TW_Lise Girardin — GPIR-TW-AP-00046",
+    "PON-TW-Plainpalais (L12) — GPIR-TW-AP-00051",
+    "PON-TW-Plainpalais (L17) — GPIR-TW-AP-00052"
+  ],
+  "Entr. STW": [
+    "STW 2 — GPIL-TW-SE-00001",
+    "STW 1 — GPIL-TW-SE-00002",
+    "STW B17 — GPIL-TW-SE-00003",
+    "STW B18 — GPIL-TW-SE-00004",
+    "STW B16 — GPIL-TW-SE-00005",
+    "STW B19 — GPIL-TW-SE-00006",
+    "STW B15 — GPIL-TW-SE-00007",
+    "STW B20 — GPIL-TW-SE-00008",
+    "STW B14 — GPIL-TW-SE-00009",
+    "STW B21 — GPIL-TW-SE-00010",
+    "STW B13 — GPIL-TW-SE-00011",
+    "STW B22 — GPIL-TW-SE-00012",
+    "STW B23 — GPIL-TW-SE-00013",
+    "STW B30 — GPIL-TW-SE-00014",
+    "STW B35 — GPIL-TW-SE-00015",
+    "STW B31 — GPIL-TW-SE-00016",
+    "STW B36 — GPIL-TW-SE-00017",
+    "STW B32 — GPIL-TW-SE-00018",
+    "STW B37 — GPIL-TW-SE-00019",
+    "STW B38 — GPIL-TW-SE-00020",
+    "STW B41 — GPIL-TW-SE-00021",
+    "STW B39 — GPIL-TW-SE-00022",
+    "STW B42 — GPIL-TW-SE-00023",
+    "STW B40 — GPIL-TW-SE-00024",
+    "STW B43 — GPIL-TW-SE-00025",
+    "STW B44 — GPIL-TW-SE-00026",
+    "STW B47 — GPIL-TW-SE-00027",
+    "STW B45 — GPIL-TW-SE-00028",
+    "STW B48 — GPIL-TW-SE-00029",
+    "STW B46 — GPIL-TW-SE-00030",
+    "STW B49 — GPIL-TW-SE-00031",
+    "STW B50 — GPIL-TW-SE-00032",
+    "STW B53 — GPIL-TW-SE-00033",
+    "STW B51 — GPIL-TW-SE-00034",
+    "STW B52 — GPIL-TW-SE-00035",
+    "STW B54 — GPIL-TW-SE-00036",
+    "STW B57 — GPIL-TW-SE-00037",
+    "STW B55 — GPIL-TW-SE-00038",
+    "STW B58 — GPIL-TW-SE-00039",
+    "STW B56 — GPIL-TW-SE-00040",
+    "STW B59 — GPIL-TW-SE-00041",
+    "STW B60 — GPIL-TW-SE-00042",
+    "STW B85 — GPIL-TW-SE-00043",
+    "STW B61 — GPIL-TW-SE-00044",
+    "STW B63 — GPIL-TW-SE-00045",
+    "STW B62 — GPIL-TW-SE-00046",
+    "STW B64 — GPIL-TW-SE-00047",
+    "STW B65 — GPIL-TW-SE-00048",
+    "STW B68 — GPIL-TW-SE-00049",
+    "STW B66 — GPIL-TW-SE-00050",
+    "STW B69 — GPIL-TW-SE-00051",
+    "STW B67 — GPIL-TW-SE-00052",
+    "STW B70 — GPIL-TW-SE-00053",
+    "STW B71 — GPIL-TW-SE-00054",
+    "STW B72 — GPIL-TW-SE-00055",
+    "STW B74 — GPIL-TW-SE-00056",
+    "STW B73 — GPIL-TW-SE-00057",
+    "STW B75 — GPIL-TW-SE-00058",
+    "STW B76 — GPIL-TW-SE-00059",
+    "STW B77 — GPIL-TW-SE-00060",
+    "STW B81 — GPIL-TW-SE-00061",
+    "STW B79 — GPIL-TW-SE-00062",
+    "STW B80 — GPIL-TW-SE-00063",
+    "STW B28 — GPIL-TW-SE-00064",
+    "STW B29 — GPIL-TW-SE-00066",
+    "STW B26 — GPIL-TW-SE-00067",
+    "STW B27 — GPIL-TW-SE-00068",
+    "STW B25 — GPIL-TW-SE-00069",
+    "STW B24 — GPIL-TW-SE-00070",
+    "STW B34 — GPIL-TW-SE-00071",
+    "STW B12 — GPIL-TW-SE-00072",
+    "STW B33 — GPIL-TW-SE-00073",
+    "STW B08 — GPIL-TW-SE-00074",
+    "STW B09 — GPIL-TW-SE-00075",
+    "STW B11 — GPIL-TW-SE-00076",
+    "STW B06 — GPIL-TW-SE-00077",
+    "STW B87 — GPIL-TW-SE-00078",
+    "STW B05 — GPIL-TW-SE-00079",
+    "STW B04 — GPIL-TW-SE-00080",
+    "STW B07 — GPIL-TW-SE-00081",
+    "STW B02 — GPIL-TW-SE-00082",
+    "STW B01 — GPIL-TW-SE-00083",
+    "STW B78 — GPIL-TW-SE-00084",
+    "STW B82 — GPIL-TW-SE-00085",
+    "STW B03 — GPIL-TW-SE-00086",
+    "STW B10 — GPIL-TW-SE-00087",
+    "STW 36 — GPIL-TW-SE-00111",
+    "STW 35 — GPIL-TW-SE-00112",
+    "STW 32 — GPIL-TW-SE-00113",
+    "STW 31 — GPIL-TW-SE-00114",
+    "STW 30 — GPIL-TW-SE-00115",
+    "STW 29 — GPIL-TW-SE-00116",
+    "STW 28 — GPIL-TW-SE-00117",
+    "STW 27 — GPIL-TW-SE-00118",
+    "STW 26 — GPIL-TW-SE-00119",
+    "STW 25 — GPIL-TW-SE-00120",
+    "STW 24 — GPIL-TW-SE-00121",
+    "STW 23 — GPIL-TW-SE-00122",
+    "STW 22 — GPIL-TW-SE-00123",
+    "STW 21 — GPIL-TW-SE-00124",
+    "STW 93 — GPIL-TW-SE-00125",
+    "STW 94 — GPIL-TW-SE-00126",
+    "STW 20 — GPIL-TW-SE-00127",
+    "STW 19 — GPIL-TW-SE-00128",
+    "STW 18 — GPIL-TW-SE-00129",
+    "STW 17 — GPIL-TW-SE-00130",
+    "STW 16 — GPIL-TW-SE-00131",
+    "STW 15 — GPIL-TW-SE-00132",
+    "STW 14 — GPIL-TW-SE-00133",
+    "STW 13 — GPIL-TW-SE-00134",
+    "STW 12 — GPIL-TW-SE-00135",
+    "STW 11 — GPIL-TW-SE-00136",
+    "STW 10 — GPIL-TW-SE-00137",
+    "STW 09 — GPIL-TW-SE-00138",
+    "STW 08 — GPIL-TW-SE-00139",
+    "STW 07 — GPIL-TW-SE-00140",
+    "STW 06 — GPIL-TW-SE-00141",
+    "STW 05 — GPIL-TW-SE-00142",
+    "STW 04 — GPIL-TW-SE-00143",
+    "STW 03 — GPIL-TW-SE-00144",
+    "STW 38 — GPIL-TW-SE-00145",
+    "STW 37 — GPIL-TW-SE-00146",
+    "STW 40 — GPIL-TW-SE-00147",
+    "STW 39 — GPIL-TW-SE-00148",
+    "STW 42 — GPIL-TW-SE-00149",
+    "STW 41 — GPIL-TW-SE-00150",
+    "STW 45 — GPIL-TW-SE-00151",
+    "STW 46 — GPIL-TW-SE-00152",
+    "STW 44 — GPIL-TW-SE-00153",
+    "STW 43 — GPIL-TW-SE-00154",
+    "STW 61 — GPIL-TW-SE-00155",
+    "STW 60 — GPIL-TW-SE-00156",
+    "STW 63 — GPIL-TW-SE-00157",
+    "STW 62 — GPIL-TW-SE-00158",
+    "STW 65 — GPIL-TW-SE-00159",
+    "STW 64 — GPIL-TW-SE-00160",
+    "STW 59 — GPIL-TW-SE-00161",
+    "STW 69 — GPIL-TW-SE-00162",
+    "STW 68 — GPIL-TW-SE-00163",
+    "STW 70 — GPIL-TW-SE-00164",
+    "STW 71 — GPIL-TW-SE-00165",
+    "STW 72 — GPIL-TW-SE-00166",
+    "STW 66 — GPIL-TW-SE-00167",
+    "STW 67 — GPIL-TW-SE-00168",
+    "STW 74 — GPIL-TW-SE-00169",
+    "STW 73 — GPIL-TW-SE-00170",
+    "STW 76 — GPIL-TW-SE-00171",
+    "STW 75 — GPIL-TW-SE-00172",
+    "STW 77 — GPIL-TW-SE-00173",
+    "STW 78 — GPIL-TW-SE-00174",
+    "STW 79 — GPIL-TW-SE-00175",
+    "STW 80 — GPIL-TW-SE-00176",
+    "STW 81 — GPIL-TW-SE-00177",
+    "STW 82 — GPIL-TW-SE-00178",
+    "STW 90 — GPIL-TW-SE-00179",
+    "STW 89 — GPIL-TW-SE-00180",
+    "STW 92 — GPIL-TW-SE-00181",
+    "STW 91 — GPIL-TW-SE-00182",
+    "STW 85 — GPIL-TW-SE-00183",
+    "STW 86 — GPIL-TW-SE-00184",
+    "STW 88 — GPIL-TW-SE-00185",
+    "STW 87 — GPIL-TW-SE-00186",
+    "STW 47 — GPIL-TW-SE-00187",
+    "STW 48 — GPIL-TW-SE-00188",
+    "STW 49 — GPIL-TW-SE-00189",
+    "STW 50 — GPIL-TW-SE-00190",
+    "STW 51 — GPIL-TW-SE-00191",
+    "STW 52 — GPIL-TW-SE-00192",
+    "STW 53 — GPIL-TW-SE-00193",
+    "STW 54 — GPIL-TW-SE-00194",
+    "STW 83 — GPIL-TW-SE-00195",
+    "STW 84 — GPIL-TW-SE-00196",
+    "STW C01 — GPIL-TW-SE-00197",
+    "STW C04 — GPIL-TW-SE-00198",
+    "STW C05 — GPIL-TW-SE-00199",
+    "STW C02 — GPIL-TW-SE-00200",
+    "STW C03 — GPIL-TW-SE-00201",
+    "STW C09 — GPIL-TW-SE-00202",
+    "STW C08 — GPIL-TW-SE-00203",
+    "STW C07 — GPIL-TW-SE-00204",
+    "STW C06 — GPIL-TW-SE-00205",
+    "STW C10 — GPIL-TW-SE-00206",
+    "STW C14 — GPIL-TW-SE-00207",
+    "STW C13 — GPIL-TW-SE-00208",
+    "STW C12 — GPIL-TW-SE-00209",
+    "STW C11 — GPIL-TW-SE-00211",
+    "STW C16 — GPIL-TW-SE-00212",
+    "STW C15 — GPIL-TW-SE-00213",
+    "STW C20 — GPIL-TW-SE-00214",
+    "STW C19 — GPIL-TW-SE-00215",
+    "STW C18 — GPIL-TW-SE-00216",
+    "STW C17 — GPIL-TW-SE-00217",
+    "STW C22 — GPIL-TW-SE-00218",
+    "STW C21 — GPIL-TW-SE-00219",
+    "STW C23 — GPIL-TW-SE-00220",
+    "STW C24 — GPIL-TW-SE-00221",
+    "STW C27 — GPIL-TW-SE-00223",
+    "STW C28 — GPIL-TW-SE-00224",
+    "STW C29 — GPIL-TW-SE-00225",
+    "STW C30 — GPIL-TW-SE-00226",
+    "STW C31 — GPIL-TW-SE-00227",
+    "STW C32 — GPIL-TW-SE-00228",
+    "STW C33 — GPIL-TW-SE-00229",
+    "STW C34 — GPIL-TW-SE-00230",
+    "STW C35 — GPIL-TW-SE-00231",
+    "STW C36 — GPIL-TW-SE-00232",
+    "STW C37 — GPIL-TW-SE-00233",
+    "STW C38 — GPIL-TW-SE-00234",
+    "STW C26 — GPIL-TW-SE-00235",
+    "STW C39 — GPIL-TW-SE-00236",
+    "STW C40 — GPIL-TW-SE-00237",
+    "STW C41 — GPIL-TW-SE-00238",
+    "STW C42 — GPIL-TW-SE-00239",
+    "STW C43 — GPIL-TW-SE-00240",
+    "STW C44 — GPIL-TW-SE-00241",
+    "STW C45 — GPIL-TW-SE-00242",
+    "STW C46 — GPIL-TW-SE-00243",
+    "STW C47 — GPIL-TW-SE-00244",
+    "STW C48 — GPIL-TW-SE-00245",
+    "STW C49 — GPIL-TW-SE-00246",
+    "PAC 1 — GPIL-TW-SE-00247",
+    "PAC 2 — GPIL-TW-SE-00248",
+    "STW 96 — GPIL-TW-SE-00249",
+    "STW 95 — GPIL-TW-SE-00250",
+    "STW 34 — GPIL-TW-SE-00251",
+    "STW 33 — GPIL-TW-SE-00252",
+    "STW 55 — GPIL-TW-SE-00254",
+    "STW 56 — GPIL-TW-SE-00255",
+    "STW 57 — GPIL-TW-SE-00256",
+    "STW 58 — GPIL-TW-SE-00257",
+    "STW 97 — GPIL-TW-SE-00258",
+    "STW 98 — GPIL-TW-SE-00259",
+    "STW 99 — GPIL-TW-SE-00260",
+    "STW 100 — GPIL-TW-SE-00261",
+    "STW B86 — GPIL-TW-SE-00262",
+    "STW B83 — GPIL-TW-SE-00263",
+    "STW B84 — GPIL-TW-SE-00264",
+    "STW B89 — GPIL-TW-SE-00265",
+    "STW B90 — GPIL-TW-SE-00266",
+    "STW B91 — GPIL-TW-SE-00267",
+    "STW B92 — GPIL-TW-SE-00268",
+    "STW 101 — GPIL-TW-SE-00269",
+    "STW 102 — GPIL-TW-SE-00270",
+    "STW 103 — GPIL-TW-SE-00271",
+    "STW 104 — GPIL-TW-SE-00272",
+    "STW 105 — GPIL-TW-SE-00273",
+    "STW 106 — GPIL-TW-SE-00274",
+    "STW 107 — GPIL-TW-SE-00275",
+    "STW 108 — GPIL-TW-SE-00276"
+  ],
+  "Entr. CMJ": [
+    "CR5 — GPIL-TB-CR-00006",
+    "CR4 — GPIL-TB-CR-00005",
+    "CR3 — GPIL-TB-CR-00004",
+    "CR2 — GPIL-TB-CR-00003",
+    "CR1 — GPIL-TB-CR-00002",
+    "Aig jon 1 — GPIL-TB-CR-00007",
+    "Aig jon 2 — GPIL-TB-CR-00008",
+    "Aig jon 3 — GPIL-TB-CR-00009",
+    "Aig jon 4 — GPIL-TB-CR-00010",
+    "Aig jon 5 — GPIL-TB-CR-00011",
+    "Aig jon 6 — GPIL-TB-CR-00012",
+    "Aig jon 7 — GPIL-TB-CR-00013",
+    "Aig jon 8 — GPIL-TB-CR-00014",
+    "Aig jon 9 — GPIL-TB-CR-00015",
+    "Aig jon 10 — GPIL-TB-CR-00016",
+    "Aig jon 11 — GPIL-TB-CR-00017",
+    "Aig jon 12 — GPIL-TB-CR-00018",
+    "Aig jon 13 — GPIL-TB-CR-00019",
+    "Aig jon 14 — GPIL-TB-CR-00020",
+    "Aig jon 15 — GPIL-TB-CR-00021",
+    "Aig jon 16 — GPIL-TB-CR-00022",
+    "Aig jon 17 — GPIL-TB-CR-00023",
+    "Aig jon 18 — GPIL-TB-CR-00024",
+    "Aig jon 19 — GPIL-TB-CR-00025",
+    "Aig jon 20 — GPIL-TB-CR-00026",
+    "Aig jon 21 — GPIL-TB-CR-00027",
+    "Aig jon 22 — GPIL-TB-CR-00028",
+    "Aig jon 23 — GPIL-TB-CR-00029",
+    "Aig jon 24 — GPIL-TB-CR-00030",
+    "Aig jon 25 — GPIL-TB-CR-00031",
+    "Aig jon 26 — GPIL-TB-CR-00032",
+    "Aig jon 27 — GPIL-TB-CR-00033",
+    "Aig jon 28 — GPIL-TB-CR-00034",
+    "Aig jon 29 — GPIL-TB-CR-00035",
+    "Aig jon 30 — GPIL-TB-CR-00036",
+    "Aig jon 31 — GPIL-TB-CR-00037",
+    "Aig jon 32 — GPIL-TB-CR-00038",
+    "Aig jon 33 — GPIL-TB-CR-00039",
+  ],
+  "Ctrl. ligne TW": [
+    "S_12-8_TW — GPIL-TW-FC-00001",
+    "S_17-3_TW — GPIL-TW-FC-00002",
+    "S_17-45_TW — GPIL-TW-FC-00003",
+    "S_17-6_TW — GPIL-TW-FC-00004",
+    "S_17-7_TW — GPIL-TW-FC-00005",
+    "S_12-7a_TW — GPIL-TW-FC-00006",
+    "S_12-2b_TW — GPIL-TW-FC-00007",
+    "S_12-6_TW — GPIL-TW-FC-00008",
+    "S_12-5_TW — GPIL-TW-FC-00009",
+    "S_12-4_TW — GPIL-TW-FC-00010",
+    "S_12-3_TW — GPIL-TW-FC-00011",
+    "S_12-12b_TW — GPIL-TW-FC-00012",
+    "S_12-12a_TW — GPIL-TW-FC-00013",
+    "S_17-1_TW — GPIL-TW-FC-00014",
+    "S_17-2_TW — GPIL-TW-FC-00015",
+    "S_18-5_TW — GPIL-TW-FC-00016",
+    "S_18-6_TW — GPIL-TW-FC-00017",
+    "S_18-13_TW — GPIL-TW-FC-00018",
+    "S_18-14_TW — GPIL-TW-FC-00019",
+    "S_14-7_TW — GPIL-TW-FC-00020",
+    "S_14-6_TW — GPIL-TW-FC-00021",
+    "S_14-45_TW — GPIL-TW-FC-00022",
+    "S_14-3_TW — GPIL-TW-FC-00023",
+    "S_14-2_TW — GPIL-TW-FC-00024",
+    "S_14-1_TW — GPIL-TW-FC-00025",
+    "S_13-1_TW — GPIL-TW-FC-00026",
+    "S_18-34_TW — GPIL-TW-FC-00027",
+    "S_15-6_TW — GPIL-TW-FC-00028",
+    "S_15-45a_TW — GPIL-TW-FC-00029",
+    "S_15-3_TW — GPIL-TW-FC-00030",
+    "S_15-1_TW — GPIL-TW-FC-00031",
+    "S_13-3_TW — GPIL-TW-FC-00032",
+    "S_13-4_TW — GPIL-TW-FC-00033",
+    "S_17-8a_TW — GPIL-TW-FC-00034",
+    "S_17-9_TW — GPIL-TW-FC-00035",
+    "S_18-7_TW — GPIL-TW-FC-00036",
+    "S_18-8_TW — GPIL-TW-FC-00037",
+    "S_1-5a_TW — GPIL-TW-FC-00038",
+    "S_1-5b_TW — GPIL-TW-FC-00039",
+    "S_1-6_TW — GPIL-TW-FC-00040",
+    "S_1-7_TW — GPIL-TW-FC-00041",
+    "S_1-8_TW — GPIL-TW-FC-00042",
+    "S_1-10_TW — GPIL-TW-FC-00043",
+    "S_1-11_TW — GPIL-TW-FC-00044",
+    "S_1-12_TW — GPIL-TW-FC-00045",
+    "S_14-8_TW — GPIL-TW-FC-00046",
+    "S_14-9_TW — GPIL-TW-FC-00047",
+    "S_15-8a_TW — GPIL-TW-FC-00048",
+    "S_15-8b_TW — GPIL-TW-FC-00049",
+    "S_15-7_TW — GPIL-TW-FC-00050",
+    "S_13-2_TW — GPIL-TW-FC-00051",
+    "S_15-45b_TW — GPIL-TW-FC-00052"
+  ],
+  "Ctrl. ligne TB": [
+    "S_10-1a_TB — GPIL-TB-FC-00001",
+    "S_1-1_TB — GPIL-TB-FC-00002",
+    "S_1-2_TB — GPIL-TB-FC-00003",
+    "S_2-2_TB — GPIL-TB-FC-00004",
+    "S_2-3_TB — GPIL-TB-FC-00005",
+    "S_2-4_TB — GPIL-TB-FC-00006",
+    "S_2-5_TB — GPIL-TB-FC-00007",
+    "S_2-6_TB — GPIL-TB-FC-00008",
+    "S_2-7a_TB — GPIL-TB-FC-00009",
+    "S_2-7b_TB — GPIL-TB-FC-00010",
+    "S_2-8a_TB — GPIL-TB-FC-00011",
+    "S_2-8b_TB — GPIL-TB-FC-00012",
+    "S_3-2_TB — GPIL-TB-FC-00013",
+    "S_3-3a_TB — GPIL-TB-FC-00014",
+    "S_3-3b_TB — GPIL-TB-FC-00015",
+    "S_3-4_TB — GPIL-TB-FC-00016",
+    "S_3-6a_TB — GPIL-TB-FC-00017",
+    "S_3-6b_TB — GPIL-TB-FC-00018",
+    "S_3-7_TB — GPIL-TB-FC-00019",
+    "S_6-1_TB — GPIL-TB-FC-00020",
+    "S_6-2_TB — GPIL-TB-FC-00021",
+    "S_6-3_TB — GPIL-TB-FC-00022",
+    "S_7-1a_TB — GPIL-TB-FC-00023",
+    "S_7-1b_TB — GPIL-TB-FC-00024",
+    "S_7-3_TB — GPIL-TB-FC-00025",
+    "S_10-1b_TB — GPIL-TB-FC-00026",
+    "S_7-4_TB — GPIL-TB-FC-00027",
+    "S_2-9_TB — GPIL-TB-FC-00028"
+  ],
+  "Entr. Rail TOSA": [
+    "Potence/Rail FFS-03 Avenue de l'Ain > Ca — GPIR-TO-PR-00001",
+    "Potence/Rail TFS-03 P+R47 — GPIR-TO-PR-00002",
+    "Potence/Rail FFS-10 Tour de contrôle — GPIR-TO-PR-00003",
+    "Potence/Rail FFS-07 WTC — GPIR-TO-PR-00004",
+    "Potence/Rail FFS-02 Aréna — GPIR-TO-PR-00005",
+    "Potence/Rail TFS-02 Carouge-Tours — GPIR-TO-PR-00006",
+    "Potence/Rail FFS-04 Bossons > Carouge — GPIR-TO-PR-00007",
+    "Potence/Rail FFS-12 Stade de Genève — GPIR-TO-PR-00008",
+    "Potence/Rail FFS-13 Pontets — GPIR-TO-PR-00009",
+    "Potence/Rail FFS-11 Pré-Monnard — GPIR-TO-PR-00010",
+    "Potence/Rail FFS-08 Bossons > Aéroport — GPIR-TO-PR-00011",
+    "Potence/Rail FFS-09 Chemin du Bac > Aéro — GPIR-TO-PR-00012",
+    "Potence/Rail FFS-06 Avenue de l'Ain > Aé — GPIR-TO-PR-00013",
+    "Potence/Rail TFS-04 Aéroport — GPIR-TO-PR-00014",
+    "Potence/Rail FFS-05 Chemin du Bac > Caro — GPIR-TO-PR-00015",
+    "Potence/Rail DFS 03-01 CMJ — GPIR-TO-PR-00016",
+    "Potence/Rail DFS 03-02 CMJ — GPIR-TO-PR-00017",
+    "Potence/Rail DFS 03-03 CMJ — GPIR-TO-PR-00018",
+    "Potence/Rail DFS 03-04 CMJ — GPIR-TO-PR-00019",
+    "Potence/Rail DFS 04-01 CMJ — GPIR-TO-PR-00020",
+    "Potence/Rail DFS 04-02 CMJ — GPIR-TO-PR-00021",
+    "Potence/Rail DFS 04-03 CMJ — GPIR-TO-PR-00022",
+    "Potence/Rail DFS 04-04 CMJ — GPIR-TO-PR-00023",
+    "Potence/Rail DFS 06-04 CMJ — GPIR-TO-PR-00024"
+  ],
+  "Entr. Parafoudre": [
+    "PF01 TW — GPIR-TW-PF-00001",
+    "PF02 TW — GPIR-TW-PF-00002",
+    "PF03 TW — GPIR-TW-PF-00004",
+    "PF04 TW — GPIR-TW-PF-00003",
+    "PF05 TW — GPIR-TW-PF-00005",
+    "PF06 TW — GPIR-TW-PF-00006",
+    "PF07 TW — GPIR-TW-PF-00007",
+    "PF08 TW — GPIR-TW-PF-00038",
+    "PF09 TW — GPIR-TW-PF-00008",
+    "PF10 TW — GPIR-TW-PF-00009",
+    "PF11 TW — GPIR-TW-PF-00010",
+    "PF12 TW — GPIR-TW-PF-00011",
+    "PF13 TW — GPIR-TW-PF-00039",
+    "PF14 TW — GPIR-TW-PF-00012",
+    "PF15 TW — GPIR-TW-PF-00013",
+    "PF16 TW — GPIR-TW-PF-00014",
+    "PF17 TW — GPIR-TW-PF-00015",
+    "PF18 TW — GPIR-TW-PF-00016",
+    "PF19 TW — GPIR-TW-PF-00017",
+    "PF20 TW — GPIR-TW-PF-00040",
+    "PF21 TW — GPIR-TW-PF-00018",
+    "PF22 TW — GPIR-TW-PF-00019",
+    "PF23 TW — GPIR-TW-PF-00020",
+    "PF24 TW — GPIR-TW-PF-00021",
+    "PF25 TW — GPIR-TW-PF-00022",
+    "PF26 TW — GPIR-TW-PF-00023",
+    "PF27 TW — GPIR-TW-PF-00024",
+    "PF28 TW — GPIR-TW-PF-00025",
+    "PF30 TW — GPIR-TW-PF-00041",
+    "PF31 TW — GPIR-TW-PF-00042",
+    "PF32 TW — GPIR-TW-PF-00030",
+    "PF33 TW — GPIR-TW-PF-00031",
+    "PF34 TW — GPIR-TW-PF-00032",
+    "PF35 TW — GPIR-TW-PF-00043",
+    "PF36 TW — GPIR-TW-PF-00033",
+    "PF37 TW — GPIR-TW-PF-00034",
+    "PF38 TW — GPIR-TW-PF-00035",
+    "PF39 TW — GPIR-TW-PF-00036",
+    "PF40 TW — GPIR-TW-PF-00037",
+    "PF41 TW — GPIR-TW-PF-00027",
+    "PF42 TW — GPIR-TW-PF-00029",
+    "PF43 TW — GPIR-TW-PF-00028",
+    "PF 44 TB — GPIR-TB-PF-00001",
+    "PF 45 TB — GPIR-TB-PF-00002",
+    "PF 46 TB — GPIR-TB-PF-00003",
+    "PF 47 TB — GPIR-TB-PF-00004",
+    "PF 48 TB — GPIR-TB-PF-00005",
+    "PF 49 TB — GPIR-TB-PF-00006"
+  ],
+  "E-Bus": [
+    "E-Bus 01",
+    "E-Bus 02",
+    "E-Bus 03",
+    "E-Bus 04",
+    "E-Bus 05",
+    "E-Bus 06",
+    "E-Bus 07",
+    "E-Bus 08",
+    "E-Bus 09",
+    "E-Bus 10",
+    "E-Bus 11",
+    "E-Bus 12",
+    "E-Bus 13",
+    "E-Bus 14",
+    "E-Bus 15",
+    "E-Bus 16",
+    "E-Bus 17",
+    "E-Bus 18",
+    "E-Bus 19",
+    "E-Bus 20",
+    "E-Bus 21",
+    "E-Bus 22",
+    "E-Bus 23",
+    "E-Bus 24",
+    "E-Bus 25",
+    "E-Bus 26",
+    "E-Bus 27",
+    "E-Bus 28",
+    "E-Bus 29",
+    "E-Bus 30",
+    "E-Bus 31",
+    "E-Bus 32",
+    "E-Bus 33",
+    "E-Bus 34",
+    "E-Bus 35",
+    "E-Bus 36",
+    "E-Bus 37",
+    "E-Bus 38",
+    "E-Bus 39",
+    "E-Bus 40"
+  ],
+  "France": [
+    "702 Visite coffret énergie",
+    "703 Visite trimestrielle ligne aérienne",
+    "713 Visite préventive ligne aérienne",
+    "705 Nettoyage des coffrets énergie",
+    "717 Vérification de l'isolement feeder"
+  ],
+  "Croisement ouvert": [
+    "CO. 1 — GPIL-MI-CR-00001",
+    "CO. 2 — GPIL-MI-CR-00002",
+    "CO. 3.1 — GPIL-MI-CR-00003",
+    "CO. 3.2 — GPIL-MI-CR-00004",
+    "CO. 3.3 — GPIL-MI-CR-00005",
+    "CO. 3.4 — GPIL-MI-CR-00006",
+    "CO. 4.1 — GPIL-MI-CR-00007",
+    "CO. 4.2 — GPIL-MI-CR-00008",
+    "CO. 5.1 — GPIL-MI-CR-00009",
+    "CO. 5.2 — GPIL-MI-CR-00010",
+    "CO. 6 — GPIL-MI-CR-00011",
+    "CO. 7.1 — GPIL-MI-CR-00012",
+    "CO. 7.2 — GPIL-MI-CR-00013",
+    "CO. 7.3 — GPIL-MI-CR-00014",
+    "CO. 7.4 — GPIL-MI-CR-00015",
+    "CO. 8.1 — GPIL-MI-CR-00016",
+    "CO. 8.2 — GPIL-MI-CR-00017",
+    "CO. 9.1 — GPIL-MI-CR-00018",
+    "CO. 9.2 — GPIL-MI-CR-00019",
+    "CO. 10.1 — GPIL-MI-CR-00020",
+    "CO. 10.2 — GPIL-MI-CR-00021",
+    "CO. 11.1 — GPIL-MI-CR-00022",
+    "CO. 11.2 — GPIL-MI-CR-00023",
+    "CO. 11.3 — GPIL-MI-CR-00024",
+    "CO. 11.4 — GPIL-MI-CR-00025",
+    "CO. 12 — GPIL-MI-CR-00026",
+    "CO. 13.1 — GPIL-MI-CR-00027",
+    "CO. 13.2 — GPIL-MI-CR-00028",
+    "CO. 14.1 — GPIL-MI-CR-00029",
+    "CO. 14.2 — GPIL-MI-CR-00030",
+    "CO. 15.1 — GPIL-MI-CR-00031",
+    "CO. 15.2 — GPIL-MI-CR-00032",
+    "CO. 16.1 — GPIL-MI-CR-00033",
+    "CO. 16.2 — GPIL-MI-CR-00034",
+    "CO. 17.1 — GPIL-MI-CR-00035",
+    "CO. 17.2 — GPIL-MI-CR-00036",
+    "CO. 17.3 — GPIL-MI-CR-00037",
+    "CO. 18 — GPIL-MI-CR-00038",
+    "CO. 19 — GPIL-MI-CR-00039",
+    "CO. 20.1 — GPIL-MI-CR-00040",
+    "CO. 20.2 — GPIL-MI-CR-00041"
+  ],
+  "Entr. Arm PON": [
+    "PON_TW_Bastion — GPIR-TW-AP-00001",
+    "PON_TW_Rpt Plainpalais L18 — GPIR-TW-AP-00002",
+    "PON_TW_Pont de l'île Bel-Air — GPIR-TW-AP-00003",
+    "PON_TW_S Henri Dunant — GPIR-TW-AP-00004",
+    "PON_TW_Place du Cirque — GPIR-TW-AP-00005",
+    "PON_TW_De Staël — GPIR-TW-AP-00006",
+    "PON_TW_Carouge — GPIR-TW-AP-00007",
+    "PON_TW_Quai de la poste — GPIR-TW-AP-00008",
+    "PON_TW_Stand — GPIR-TW-AP-00009",
+    "PON_TW_Boulevard Helvetique — GPIR-TW-AP-00010",
+    "PON_TW_Rue d'Italie — GPIR-TW-AP-00011",
+    "PON_TW_Arquebuse — GPIR-TW-AP-00012",
+    "PON_TW_Corraterie L14 — GPIR-TW-AP-00013",
+    "PON_TW_Corraterie L12 — GPIR-TW-AP-00014",
+    "PON_TW_Coulouvrenière — GPIR-TW-AP-00015",
+    "PON_TW_Eaux-Vives — GPIR-TW-AP-00016",
+    "PON_TW_Bouchet — GPIR-TW-AP-00017",
+    "PON_TW_Grangettes — GPIR-TW-AP-00018",
+    "PON_TW_Louis Favre — GPIR-TW-AP-00019",
+    "PON_TW_Confignon — GPIR-TW-AP-00020",
+    "PON_TW_Les Esserts — GPIR-TW-AP-00021",
+    "PON_TW_Onex — GPIR-TW-AP-00022",
+    "PON_TW_Octroi — GPIR-TW-AP-00023",
+    "PON_TW_Augustins — GPIR-TW-AP-00024",
+    "PON_TW_Cornavin - Montbrillant — GPIR-TW-AP-00025",
+    "PON_TW_Cornavin - Notre Dame — GPIR-TW-AP-00026",
+    "PON_TW_Cornavin - Coutance(Manor) — GPIR-TW-AP-00027",
+    "PON_TW_Pont-Rouge — GPIR-TW-AP-00028",
+    "PON_TW_Avenue de France — GPIR-TW-AP-00029",
+    "PON_TW_Palettes (automatique) — GPIR-TW-AP-00030",
+    "PON_TW_Pré-Bois — GPIR-TW-AP-00031",
+    "PON_TW_Vaudagne — GPIR-TW-AP-00032",
+    "PON_TW_Jardin Alpin I (automatique) — GPIR-TW-AP-00033",
+    "PON_TW_Jardon Alpin II (manuel) — GPIR-TW-AP-00034",
+    "PON_TW_Mandement — GPIR-TW-AP-00035",
+    "PON_TW_Palettes — GPIR-TW-AP-00036",
+    "PON_TW_Moillesulaz — GPIR-TW-AP-00037",
+    "PON_TW_Vailly — GPIR-TW-AP-00038",
+    "PON_TW_Pré-marais — GPIR-TW-AP-00039",
+    "PON_TW_RPT Jonction — GPIR-TW-AP-00040",
+    "PON_TW_Semailles — GPIR-TW-AP-00041",
+    "PON_TW_Cherpines — GPIR-TW-AP-00042",
+    "PON_TW_Trèfle Blanc — GPIR-TW-AP-00043",
+    "PON-TW-Moillesulaz AUTO — GPIR-TW-AP-00044",
+    "PON-TW-France — GPIR-TW-AP-00045",
+    "PON_TW_Lise Girardin — GPIR-TW-AP-00046",
+    "PON-TW-Plainpalais (L12) — GPIR-TW-AP-00051",
+    "PON-TW-Plainpalais (L17) — GPIR-TW-AP-00052"
+  ],
+  "Entr. MaT": [
+    "MàT1 — GPIR-TB-MT-00001",
+    "MàT2 — GPIR-TB-MT-00002",
+    "MàT3 — GPIR-TW-MT-00009",
+    "MàT Portique — GPIR-TW-MT-00010"
+  ]
+};
+
+const ALL_DONE=[];
+// Multi-passage config: sheet name -> number of passages
+const MULTI_PASS = {
+  "Entr_ CaR": 2,
+  "Croisement ouvert": 3
+};
+// Per-item pass count for sheets where items have different pass counts
+const ITEM_PASS = {
+  "France": {
+    "702 Visite coffret énergie": 4,
+    "703 Visite trimestrielle ligne aérienne": 4,
+    "713 Visite préventive ligne aérienne": 4,
+    "705 Nettoyage des coffrets énergie": 2,
+    "717 Vérification de l’isolement feeder": 1
+  }
+};
+// Map safeKey sheet name -> display name for SHEETS lookup
+const SHEET_DISPLAY = {};
+for(var _sk in SHEETS){
+  SHEET_DISPLAY[_sk.replace(/[.#$[\]/]/g,"_")] = _sk;
+}
+const PARTIAL={};
+
+function safeKey(s){
+  return s.replace(/[.#$[\]/]/g,"_");
+}
+function buildFirebaseData(data){
+  var out={};
+  for(var sheet in data){
+    var sk=safeKey(sheet);
+    out[sk]={};
+    for(var item in data[sheet]){
+      out[sk][safeKey(item)]=data[sheet][item];
+    }
+  }
+  return out;
+}
+function buildInit(){
+  const d={};
+  for(const[s,items]of Object.entries(SHEETS)){
+    const sk=s.replace(/[.#$[\]/]/g,"_");
+    d[sk]={};
+    const all=ALL_DONE.includes(s),part=PARTIAL[s]||[];
+    const passes=MULTI_PASS[s]||1;
+    items.forEach(item=>{
+      var ipMap2=ITEM_PASS[s]||null;
+      var ip=ipMap2?ipMap2[item]||passes:passes;
+      if(ip===1){
+        const ik=item.replace(/[.#$[\]/]/g,"_");
+        d[sk][ik]=all||part.includes(item);
+      } else {
+        for(var p=1;p<=ip;p++){
+          const ik=(item+"__p"+p).replace(/[.#$[\]/]/g,"_");
+          d[sk][ik]=false;
+        }
+      }
+    });
+  }
+  return d;
+}
+
+let db=null,fbData={},activity=[],currentSheet=null;
+
+window.addEventListener("DOMContentLoaded",()=>{
+  // Update intervention labels with current date
+  var now = new Date();
+  var months = ["janvier","fevrier","mars","avril","mai","juin","juillet","aout","septembre","octobre","novembre","decembre"];
+  var el = document.getElementById("kpi-int-month-lbl");
+  if(el) el.textContent = months[now.getMonth()] + " " + now.getFullYear();
+  var elY = document.getElementById("kpi-int-year-lbl");
+  if(elY) elY.textContent = "Depuis janvier " + now.getFullYear();
+
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.database();
+  }catch(e){
+    document.getElementById("loading").innerHTML=
+      "<div style='color:var(--red);font-family:var(--mono);text-align:center;padding:2rem;line-height:2;'>"+
+      "Erreur Firebase<br><small style='color:var(--muted)'>"+e.message+"</small><br>"+
+      "<small>Verifiez FIREBASE_CONFIG dans le fichier HTML</small></div>";
+    return;
+  }
+  db.ref(".info/connected").on("value",snap=>{
+    const p=document.getElementById("conn-pill"),t=document.getElementById("conn-txt");
+    if(snap.val()){p.className="conn-pill on";t.textContent="En ligne";}
+    else{p.className="conn-pill off";t.textContent="Hors ligne";}
+  });
+  // Init Firestore for intervention counters
+try {
+  var fbInt = firebase.initializeApp({
+    apiKey: "AIzaSyDOPPTQwuJS-pUW8Yn65fapMAtVBSDy3OQ",
+    authDomain: "tableau-tram.firebaseapp.com",
+    projectId: "tableau-tram"
+  }, "interventions");
+  var db2 = fbInt.firestore();
+  db2.collection("evenements").onSnapshot(function(snap){
+    var now = new Date();
+    var yearStr = now.getFullYear().toString();
+    var monthStr = yearStr + "-" + String(now.getMonth()+1).padStart(2,"0");
+    var countYear = 0, countMonth = 0;
+    snap.forEach(function(doc){
+      var date = (doc.data().date || "");
+      if(date.startsWith(yearStr)) countYear++;
+      if(date.startsWith(monthStr)) countMonth++;
+    });
+    var elY = document.getElementById("kpi-int-year");
+    var elM = document.getElementById("kpi-int-month");
+    if(elY) elY.textContent = countYear;
+    if(elM) elM.textContent = countMonth;
+  });
+} catch(e) { console.warn("Firestore interventions:", e.message); }
+
+// Load year from Firebase
+db.ref("annee").on("value",function(snap){
+  var yr = snap.val() || "2026";
+  var el = document.getElementById("logo-year");
+  if(el) el.textContent = yr;
+  var inp = document.getElementById("admin-year");
+  if(inp) inp.value = yr;
+});
+
+db.ref("entretien").on("value",snap=>{
+    const val=snap.val();
+    if(!val){db.ref("entretien").set(buildInit());return;}
+    fbData=val;
+    var firstLoad=document.getElementById("loading").style.display!=="none";
+    document.getElementById("loading").style.display="none";
+    document.getElementById("app-header").style.display="flex";
+    if(firstLoad){
+      showView("technician");
+    }
+    renderSidebar();
+    renderManagement();
+    if(currentSheet) renderItemPanel();
+  });
+  db.ref("activity").limitToLast(40).on("value",snap=>{
+    activity=[];snap.forEach(c=>activity.push(c.val()));activity.reverse();renderActivity();
+  });
+});
+
+function checkMgmt(){
+  switchView("management");
+}
+function checkPwd(){
+  if(document.getElementById("pwd-input").value===MGMT_PASSWORD){
+    mgmtOk=true;sessionStorage.setItem("mgmt","1");
+    closePwdModal();switchView("management");
+  }else{
+    document.getElementById("pwd-err").style.display="block";
+    document.getElementById("pwd-input").value="";
+  }
+}
+function closePwdModal(){document.getElementById("modal-pwd").classList.remove("open");}
+
+function toggle(sheet,item,val){
+  if(!db)return;
+  var sk=safeKey(sheet), ik=safeKey(item);
+  db.ref("entretien/"+sk+"/"+ik).set(val);
+  db.ref("activity").push({sheet:sheet,item:item,val:val,ts:Date.now()});
+  // Update local cache immediately — always use safeKey
+  if(!fbData[sk]) fbData[sk]={};
+  fbData[sk][ik]=val;
+  renderItemPanel();
+  renderSidebar();
+  toast(val?"OUI":"NON",val?"var(--green)":"var(--yellow)");
+}
+function markAll(val){
+  if(!currentSheet||!db)return;
+  const u={};
+  Object.keys(fbData[safeKey(currentSheet)]||{}).forEach(item=>{u["entretien/"+safeKey(currentSheet)+"/"+safeKey(item)]=val;});
+  db.ref().update(u);
+  db.ref("activity").push({sheet:currentSheet,item:"(tout "+(val?"valide":"efface")+")",val,ts:Date.now()});
+  toast(val?"Tous valides":"Tous effaces",val?"var(--green)":"var(--red)");
+}
+function resetAll(){
+  if(!db)return;
+  if(!confirm("Reinitialiser TOUTES les donnees aux valeurs Excel initiales ?"))return;
+  db.ref("entretien").set(buildInit());
+  db.ref("activity").push({sheet:"-",item:"RESET GLOBAL",val:false,ts:Date.now()});
+  toast("Reset effectue","var(--yellow)");
+}
+
+function st(sheet){
+  var passes=MULTI_PASS[sheet]||1;
+  var sk=safeKey(sheet);
+  var items=fbData[sk]||{};
+  if(passes===1){
+    var total=Object.keys(items).length;
+    var done=Object.values(items).filter(Boolean).length;
+    return{total:total,done:done,left:total-done,pct:total?Math.round(done/total*100):0};
+  }
+  var _dn=SHEET_DISPLAY[sheet]||sheet;
+  var baseItems=SHEETS[_dn]||[];
+  var ipMap=ITEM_PASS[_dn]||null;
+  var total=0,done=0;
+  baseItems.forEach(function(name){
+    var ip=ipMap?ipMap[name]||passes:passes;
+    total+=ip;
+    for(var p=1;p<=ip;p++){
+      var ik=safeKey(name+"__p"+p);
+      if(items[ik])done++;
+    }
+  });
+  return{total:total,done:done,left:total-done,pct:total?Math.round(done/total*100):0};
+}
+
+function gst(){
+  let t=0,d=0;
+  for(const s of Object.keys(fbData)){const x=st(s);t+=x.total;d+=x.done;}
+  return{total:t,done:d,left:t-d,pct:t?Math.round(d/t*100):0};
+}
+
+function renderManagement(){
+  const g=gst();
+  document.getElementById("kpi-total").textContent=g.total.toLocaleString("fr");
+  document.getElementById("kpi-done").textContent=g.done.toLocaleString("fr");
+  document.getElementById("kpi-pct").textContent=g.pct+"% d avancement";
+  document.getElementById("kpi-left").textContent=g.left.toLocaleString("fr");
+  document.getElementById("kpi-sheets").textContent=Object.keys(fbData).length;
+  const C=439.8;
+  document.getElementById("ring-fill").style.strokeDashoffset=C-(g.pct/100)*C;
+  document.getElementById("ring-pct").textContent=g.pct+"%";
+  document.getElementById("last-update-lbl").textContent=
+    "Temps reel Firebase - "+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  const grid=document.getElementById("cat-grid");
+  grid.innerHTML="";
+  Object.keys(fbData).forEach(sheet=>{
+    const s=st(sheet);
+    const col=s.pct===100?"var(--green)":s.pct>50?"var(--accent)":s.pct>0?"var(--yellow)":"var(--red)";
+    const div=document.createElement("div");
+    div.className="cat-row";
+    div.onclick=()=>{switchView("technician");selectSheet(sheet);};
+    div.innerHTML="<div class='cat-name'>"+sheet+"</div>"+
+      "<div class='cat-bar-wrap'><div class='cat-bar' style='width:"+s.pct+"%;background:"+col+"'></div></div>"+
+      "<div class='pct-lbl' style='color:"+col+"'>"+s.pct+"%</div>"+
+      "<div class='cat-stats'>"+s.done+"/"+s.total+"</div>";
+    grid.appendChild(div);
+  });
+  renderBarChart();
+}
+
+function renderBarChart(){
+  const svg=document.getElementById("bar-chart");
+  const W=svg.parentElement.clientWidth-40,H=200;
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);svg.innerHTML="";
+  const sheets=Object.keys(fbData);if(!sheets.length)return;
+  const step=(W-20)/sheets.length,bw=Math.max(6,Math.min(26,step-8));
+  sheets.forEach((sheet,i)=>{
+    const s=st(sheet),bh=Math.max(2,(s.pct/100)*(H-32));
+    const x=10+i*step+step/2-bw/2,y=H-20-bh;
+    const col=s.pct===100?"#10b981":s.pct>50?"#00d4ff":s.pct>0?"#f59e0b":"#2a2d38";
+    const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    r.setAttribute("x",x);r.setAttribute("y",y);r.setAttribute("width",bw);r.setAttribute("height",bh);
+    r.setAttribute("rx","3");r.setAttribute("fill",col);r.setAttribute("opacity","0.85");
+    const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x",x+bw/2);t.setAttribute("y",H-4);t.setAttribute("text-anchor","middle");
+    t.setAttribute("font-size","8");t.setAttribute("fill","#64748b");t.setAttribute("font-family","DM Mono,monospace");
+    t.textContent=sheet.length>9?sheet.slice(0,8)+"...":sheet;
+    svg.appendChild(r);svg.appendChild(t);
+  });
+}
+
+function renderActivity(){
+  const el=document.getElementById("activity-log");
+  if(!activity.length){el.innerHTML="<div style='color:var(--muted);font-family:var(--mono);font-size:.78rem;'>Aucune activite.</div>";return;}
+  el.innerHTML=activity.map(a=>{
+    const d=new Date(a.ts);
+    const time=d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    const col=a.val?"var(--green)":"var(--red)",ic=a.val?"OK":"X";
+    return "<div class='act-row'><span class='act-sheet'>"+a.sheet+"</span>"+
+      "<span class='act-msg'><span style='color:"+col+";font-weight:700;'>"+ic+"</span> "+a.item+"</span>"+
+      "<span class='act-time'>"+time+"</span></div>";
+  }).join("");
+}
+
+function renderSidebar(filter){
+  filter=filter||"";
+  const list=document.getElementById("sidebar-list");list.innerHTML="";
+  Object.keys(fbData).filter(s=>s.toLowerCase().includes(filter.toLowerCase())).forEach(sheet=>{
+    const s=st(sheet);
+    const col=s.pct===100?"var(--green)":s.pct>50?"var(--accent)":s.pct>0?"var(--yellow)":"var(--red)";
+    const div=document.createElement("div");
+    div.className="sidebar-item"+(currentSheet===sheet?" active":"");
+    div.onclick=()=>selectSheet(sheet);
+    div.innerHTML="<div class='sdot' style='background:"+col+"'></div><span>"+sheet+"</span><span class='spct'>"+s.pct+"%</span>";
+    list.appendChild(div);
+  });
+}
+function filterSidebar(v){renderSidebar(v);}
+function selectSheet(sheet){currentSheet=sheet;renderSidebar();renderItemPanel();}
+function renderItemPanel(){
+  if(!currentSheet)return;
+  var passes=MULTI_PASS[currentSheet]||1;
+  var itemPassMap=ITEM_PASS[currentSheet]||null;
+  var sk=safeKey(currentSheet);
+  var items=fbData[sk]||{};
+  var s=st(currentSheet);
+  document.getElementById("panel-title").textContent=currentSheet;
+  document.getElementById("panel-stats").innerHTML=
+    "<span class='stat-pill done'>OK "+s.done+" termines</span>"+
+    "<span class='stat-pill todo'>O "+s.left+" restants</span>"+
+    (passes>1?"<span class='stat-pill' style='color:var(--accent2)'>"+passes+" passages/an</span>":"");
+  document.getElementById("panel-prog").style.width=s.pct+"%";
+  var list=document.getElementById("item-list");
+  list.innerHTML="";
+
+  var _displayName=SHEET_DISPLAY[currentSheet]||currentSheet;
+  var baseNames=SHEETS[_displayName]||Object.keys(items).map(function(k){return k.replace(/__p\d+$/,"");}).filter(function(v,i,a){return a.indexOf(v)===i;});
+
+  baseNames.forEach(function(name){
+    var row=document.createElement("div");
+    row.className="item-row";
+    var itemPasses=itemPassMap?itemPassMap[name]||1:passes;
+    if(itemPasses===1){
+      var ik=safeKey(name);
+      var done=items[ik]||false;
+      row.dataset.sheet=currentSheet;
+      row.dataset.item=name;
+      row.innerHTML="<div class='item-name'>"+name+"</div>"+
+        "<div class='toggle-group'>"+
+        "<button class='tgl oui "+(done?"active":"")+"' data-val='1'>OUI</button>"+
+        "<button class='tgl non "+(!done?"active":"")+"' data-val='0'>NON</button>"+
+        "</div>";
+      row.querySelectorAll(".tgl").forEach(function(btn){
+        btn.addEventListener("click",function(){
+          toggle(row.dataset.sheet,row.dataset.item,btn.dataset.val==="1");
+        });
+      });
+    } else {
+      var btns="<div class='toggle-group'>";
+      for(var p=1;p<=itemPasses;p++){
+        var key=name+"__p"+p;
+        var ik=safeKey(key);
+        var val=items[ik]||false;
+        var colors=["var(--green)","var(--accent)","var(--accent2)"];
+        var col=val?";background:"+colors[p-1]:"";
+        btns+="<button class='tgl oui "+(val?"active":"")+"' style='"+(val?"background:"+colors[p-1]+";color:#fff;border-color:"+colors[p-1]:"")+"' data-key='"+key+"' data-p='"+p+"'>"+(val?"✓ ":"")+"OUI "+p+"</button>";
+      }
+      btns+="<button class='tgl non' data-reset='1'>NON</button></div>";
+      row.innerHTML="<div class='item-name'>"+name+"</div>"+btns;
+      row.querySelectorAll("[data-p]").forEach(function(btn){
+        btn.addEventListener("click",function(){
+          var key=btn.dataset.key;
+          var ik=safeKey(key);
+          var cur=items[ik]||false;
+          toggleMulti(currentSheet,key,!cur);
+        });
+      });
+      var nonBtn=row.querySelector("[data-reset]");
+      if(nonBtn){
+        nonBtn.addEventListener("click",function(){
+          resetAllPasses(currentSheet,name,itemPasses);
+        });
+      }
+    }
+    list.appendChild(row);
+  });
+
+  document.getElementById("bulk-bar").style.display="flex";
+  document.getElementById("bulk-lbl").textContent=currentSheet+" - "+s.done+"/"+s.total+" ("+s.pct+"%)";
+}
+
+function toggleMulti(sheet,key,val){
+  if(!db)return;
+  var sk=safeKey(sheet),ik=safeKey(key);
+  db.ref("entretien/"+sk+"/"+ik).set(val);
+  db.ref("activity").push({sheet:sheet,item:key,val:val,ts:Date.now()});
+  if(!fbData[sk])fbData[sk]={};
+  fbData[sk][ik]=val;
+  renderItemPanel();
+  renderSidebar();
+  toast(val?"OUI":"NON",val?"var(--green)":"var(--yellow)");
+}
+
+function resetAllPasses(sheet,baseName,passes){
+  if(!db)return;
+  var sk=safeKey(sheet);
+  var updates={};
+  for(var p=1;p<=passes;p++){
+    var ik=safeKey(baseName+"__p"+p);
+    updates["entretien/"+sk+"/"+ik]=false;
+    if(!fbData[sk])fbData[sk]={};
+    fbData[sk][ik]=false;
+  }
+  db.ref().update(updates);
+  db.ref("activity").push({sheet:sheet,item:baseName+" (reset)",val:false,ts:Date.now()});
+  renderItemPanel();
+  renderSidebar();
+  toast("Passages remis à zéro","var(--yellow)");
+}
+
+function showView(v){
+  document.querySelectorAll(".view").forEach(el=>el.style.display="none");
+  document.querySelectorAll(".nav-tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById("view-"+v).style.display="block";
+  var idx = v==="technician"?0:v==="management"?1:2;
+  document.querySelectorAll(".nav-tab")[idx].classList.add("active");
+  if(v==="admin") showAdminExisting();
+}
+function switchView(v){
+  showView(v);
+  if(v==="management"){renderManagement();renderActivity();}
+  if(v==="technician"){renderSidebar();if(currentSheet)renderItemPanel();}
+}
+
+function exportCSV(){
+  var rows=["Poste;Element;Statut;Date"];
+  var d=new Date().toLocaleDateString("fr-FR");
+  for(var sheet in fbData){
+    for(var item in fbData[sheet]){
+      var done=fbData[sheet][item];
+      rows.push('"'+sheet+'";"'+item+'";"'+(done?"OUI":"NON")+'";"'+d+'"');
+    }
+  }
+  var csv=rows.join("\n");
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download="suivi_LA_"+new Date().toISOString().slice(0,10)+".csv";
+  a.click();
+  toast("Export telecharge","var(--accent)");
+}
+let _tt;
+function toast(msg,color){
+  color=color||"var(--accent)";
+  const el=document.getElementById("toast");
+  document.getElementById("toast-msg").textContent=msg;
+  document.getElementById("toast-dot").style.background=color;
+  el.classList.add("show");clearTimeout(_tt);
+  _tt=setTimeout(()=>el.classList.remove("show"),2200);
+}
+
+function saveYear(){
+  var yr = document.getElementById("admin-year").value.trim();
+  if(!yr){ toast("Annee invalide","var(--red)"); return; }
+  if(db) db.ref("annee").set(yr);
+  var el = document.getElementById("logo-year");
+  if(el) el.textContent = yr;
+  toast("Annee "+yr+" appliquee pour tous","var(--green)");
+}
+
+</script>
+</body>
+</html>
